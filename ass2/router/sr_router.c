@@ -77,12 +77,14 @@ void sr_handlepacket(struct sr_instance* sr,
   assert(packet);
   assert(interface);
 
-  printf("*** -> Received packet of length %d, packet = %d, interface = %s \n",len, *packet, interface);
+  /*(printf("*** -> Received packet of length %d, packet = %d, interface = %s \n",len, *packet, interface);*/
 
   if (len < 42 || len > 1500){
-    fprintf(stderr, "packet was too big: len = %d\n", len);
+    fprintf(stderr, "packet was outside size reqs: len = %d\n", len);
     return;
   }
+
+  print_hdrs(packet, len);
   /* TODO: fill in code here */
 
 }/* end sr_ForwardPacket */
