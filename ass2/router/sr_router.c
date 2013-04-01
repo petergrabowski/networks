@@ -79,6 +79,10 @@ void sr_handlepacket(struct sr_instance* sr,
 
   printf("*** -> Received packet of length %d, packet = %d, interface = %s \n",len, *packet, interface);
 
+  if (len < 42 || len > 1500){
+    fprintf(stderr, "packet was too big: len = %d\n", len);
+    return;
+  }
   /* TODO: fill in code here */
 
 }/* end sr_ForwardPacket */
