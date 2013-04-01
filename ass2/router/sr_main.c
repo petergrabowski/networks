@@ -159,7 +159,7 @@ int main(int argc, char **argv)
     /* call router init (for arp subsystem etc.) */
     sr_init(&sr);
 
-    /* -- whizbang main loop ;-) */
+    /* TODO: -- whizbang main loop ;-) */
     while( sr_read_from_server(&sr) == 1);
 
     sr_destroy_instance(&sr);
