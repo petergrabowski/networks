@@ -129,10 +129,12 @@
     } /* end ICMP */
   } /* end IP */
   else if (ethtype == ethertype_arp) { /* ARP */
-      fprintf(stderr, "got a packet, ARP");
+      struct sr_arpentry * arpentry;
+      fprintf(stderr, "got a packet, ARP\n");
       minlength += sizeof(sr_arp_hdr_t);
       if (len < minlength)
         fprintf(stderr, "Failed to parse ARP header, insufficient length\n");
+      sr_arpcache_dump(&(sr->cache));
   } /* end ARP */
   else {
       fprintf(stderr, "Unrecognized Ethernet Type: %d\n", ethtype);
