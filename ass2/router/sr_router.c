@@ -70,66 +70,73 @@
 
  void sr_handlepacket(struct sr_instance* sr,
         uint8_t * packet/* lent */,
-  unsigned int len,
-        char* interface/* lent */)
-  {
-  /* REQUIRES */
+    unsigned int len,
+        char* interface/* lent */) {
+    /* REQUIRES */
     assert(sr);
     assert(packet);
     assert(interface);
 
-  /*(printf("*** -> Received packet of length %d, packet = %d, interface = %s \n",len, *packet, interface);*/
+    /*(printf("*** -> Received packet of length %d, packet = %d, interface = %s \n",len, *packet, interface);*/
 
-  /* Sanity-check the packet 
-     meets minimum length */ 
+    /* Sanity-check the packet 
+    meets minimum length */ 
     if (len < 42 || len > 1500){
-      fprintf(stderr, "packet was outside size reqs: len = %d\n", len);
-      return;
+        fprintf(stderr, "packet was outside size reqs: len = %d\n", len);
+        return;
     }
-    
+
     fprintf(stderr, "got a packet, processing\n");
 
     /* print_hdrs(packet, len); */
 
-  /* Ethernet */
+    /* Ethernet */
     int minlength = sizeof(sr_ethernet_hdr_t);
     if (len < minlength) {
-      fprintf(stderr, "Failed to parse ETHERNET header, insufficient length\n");
-      return;
+        fprintf(stderr, "Failed to parse ETHERNET header, insufficient length\n");
+        return;
     }
 
     uint16_t ethtype = ethertype(packet);
     /* print_hdr_eth(buf); 
     fprintf(stderr, "ethtype = %d", ethtype); */
-  if (ethtype == ethertype_ip) { /* IP */
-    minlength += sizeof(sr_ip_hdr_t);
-    if (len < minlength) {
-      fprintf(stderr, "Failed to parse IP header, insufficient length\n");
-      return;
-    }
 
-    fprintf(stderr, "done with ethernet, now doing IP\n");
-    sr_ip_hdr_t *iphdr = (sr_ip_hdr_t *)(packet + sizeof(sr_ethernet_hdr_t));
+    /* IP */
+    if (ethtype == ethertype_ip) { 
+        minlength += sizeof(sr_ip_hdr_t);
+        if (len < minlength) {
+            fprintf(stderr, "Failed to parse IP header, insufficient length\n");
+            return;
+        }
 
-    /* and has correct checksum. */
-    uint16_t checksum;
+        fprintf(stderr, "done with ethernet, now doing IP\n");
+        sr_ip_hdr_t *iphdr = (sr_ip_hdr_t *)(packet + sizeof(sr_ethernet_hdr_t));
 
-    checksum = cksum(iphdr, sizeof(*iphdr));
-    if (checksum != iphdr->ip_sum) {
-      fprintf(stderr, "incorrect checksum\n");
-      return;
-    } else {
-      fprintf(stderr, "correct checksum!\n");
-    }
+        /* and has correct checksum. */
+        uint16_t checksum;
 
-    uint8_t ip_proto = ip_protocol(packet + sizeof(sr_ethernet_hdr_t));
-    if (ip_proto == ip_protocol_icmp) { /* ICMP */
-    minlength += sizeof(sr_icmp_hdr_t);
-    if (len < minlength)
-      fprintf(stderr, "Failed to parse ICMP header, insufficient length\n");
-    } /* end ICMP */
-  } /* end IP */
-  else if (ethtype == ethertype_arp) { /* ARP */
+        checksum = cksum(iphdr, sizeof(*iphdr));
+        fprintf(stderr, "calc  checksum = %x\n", checksum);
+        fprintf(stderr, "given checksum = %x\n", iphdr->ip_sum);
+        if (checksum != iphdr->ip_sum) {
+            fprintf(stderr, "incorrect checksum\n");
+            return;
+        } else {
+            fprintf(stderr, "correct checksum!\n");
+        }
+
+        uint8_t ip_proto = ip_protocol(packet + sizeof(sr_ethernet_hdr_t));
+
+        /* ICMP */
+        if (ip_proto == ip_protocol_icmp) { 
+            minlength += sizeof(sr_icmp_hdr_t);
+            if (len < minlength)
+                fprintf(stderr, "Failed to parse ICMP header, insufficient length\n");
+        /* end ICMP */
+        } 
+        /* end IP */
+    } else if (ethtype == ethertype_arp) { 
+        /* begin ARP */
 
        /*function handle_arpreq(req):
        if difftime(now, req->sent) > 1.0
@@ -157,131 +164,145 @@
 
         fprintf(stderr, "got a packet, ARP\n");
         minlength += sizeof(sr_arp_hdr_t);
+        
         if (len < minlength){
-          fprintf(stderr, "Failed to parse ARP header, insufficient length\n");
+            fprintf(stderr, "Failed to parse ARP header, insufficient length\n");
         }
+
         sr_arp_hdr_t *arp_hdr = (sr_arp_hdr_t *)(packet + sizeof(sr_ethernet_hdr_t));
         int arp_op = ntohs(arp_hdr->ar_op);
         fprintf(stderr, "arp_op = %x\n", arp_op); 
 
         struct sr_arpreq * req;
-        arpentry = sr_arpcache_lookup(&(sr->cache), arp_hdr->ar_sip);
+
         int found = 0;
         char   interface[sr_IFACE_NAMELEN];
-      /* check to see if the target IP belongs to one of our routers */
+
+        /* check to see if the target IP belongs to one of our routers */
         struct sr_rt* rt_walker = sr->routing_table;
         fprintf(stderr, "arp_hdr->ar_sip = %d\n" ,ntohl( arp_hdr->ar_sip));
+        
         while(rt_walker){
-         fprintf(stderr, "walker dest = %s, int form = %lu\n", inet_ntoa(rt_walker->dest), (unsigned long)ntohl(rt_walker->dest.s_addr));
-         if (ntohl(rt_walker->dest.s_addr) ==  ntohl(arp_hdr->ar_sip)){
-          found = 1;
-          memcpy(interface, rt_walker->interface, sr_IFACE_NAMELEN);
-          break;
+            fprintf(stderr, "walker dest = %s, int form = %lu\n", inet_ntoa(rt_walker->dest), (unsigned long)ntohl(rt_walker->dest.s_addr));
+            if (ntohl(rt_walker->dest.s_addr) ==  ntohl(arp_hdr->ar_sip)){
+                found = 1;
+                memcpy(interface, rt_walker->interface, sr_IFACE_NAMELEN);
+                break;
+            }
+            rt_walker = rt_walker->next;
         }
-        rt_walker = rt_walker->next;
-      }
 
-      /* if its not one of ours, ignore it */
-      if (!found){
-        fprintf(stderr, "doesn't belong to one of our interfaces, returning\n\n");
-        return;
-      }
+        /* if its not one of ours, ignore it */
+        if (!found){
+            fprintf(stderr, "doesn't belong to one of our interfaces, returning\n\n");
+            return;
+        }
 
-      if (arp_op == arp_op_request){ /* this is an incoming request */
-      fprintf(stderr, "got arp req\n");
+    if (arp_op == arp_op_request){ /* this is an incoming request */
+        fprintf(stderr, "got arp req\n");
 
         /* look up MAC address in interface list by interface name */
-      found = 0;
-      struct sr_if * if_walker = sr->if_list;
-      unsigned char   mac_addr[ETHER_ADDR_LEN];
-      fprintf(stderr, "interface %s\n", interface);
+        found = 0;
+        struct sr_if * if_walker = sr->if_list;
+        unsigned char   mac_addr[ETHER_ADDR_LEN];
+        fprintf(stderr, "interface %s\n", interface);
 
-      while (if_walker){
-        fprintf(stderr, "if_walker interface = %s\n", if_walker->name);
-        if (strncmp(interface, if_walker->name, sr_IFACE_NAMELEN) == 0){
-          memcpy(mac_addr, if_walker->addr, ETHER_ADDR_LEN);
-          fprintf(stderr,"iface name = %s\n", if_walker->name);
-          fprintf(stderr,"found MAC addr '%s'\n", if_walker->addr);
-          fprintf(stderr,"copied MAC addr %s\n", mac_addr);
-          fprintf(stderr, "printing if entry\n");
-          sr_print_if(if_walker);
-          found = 1;
-          break;
+        while (if_walker){
+            fprintf(stderr, "if_walker interface = %s\n", if_walker->name);
+            if (strncmp(interface, if_walker->name, sr_IFACE_NAMELEN) == 0){
+                memcpy(mac_addr, if_walker->addr, ETHER_ADDR_LEN);
+                fprintf(stderr,"iface name = %s\n", if_walker->name);
+                fprintf(stderr,"found MAC addr '%s'\n", if_walker->addr);
+                fprintf(stderr,"copied MAC addr %s\n", mac_addr);
+                fprintf(stderr, "printing if entry\n");
+                sr_print_if(if_walker);
+                found = 1;
+                break;
+            }
+            if_walker = if_walker->next;
         }
-        if_walker = if_walker->next;
-      }
 
         /* TODO: send ARP response */
-      if(found){
-        fprintf(stderr, "found MAC:\n");
-        DebugMAC(mac_addr);
-        fprintf(stderr, "\n end debugmac \n");
-        uint8_t newpacket[len];
-        memcpy(newpacket, packet, len);
-        sr_arp_hdr_t * new_arp_hdr = (sr_arp_hdr_t *)(newpacket + sizeof(sr_ethernet_hdr_t));
-        struct sr_ethernet_hdr* ether_hdr = newpacket;
+        if(found){
+            fprintf(stderr, "found MAC:\n");
+            DebugMAC(mac_addr);
+            fprintf(stderr, "\n end debugmac \n");
+            uint8_t newpacket[len];
+            memcpy(newpacket, packet, len);
+            sr_arp_hdr_t * new_arp_hdr = (sr_arp_hdr_t *)(newpacket + sizeof(sr_ethernet_hdr_t));
+            struct sr_ethernet_hdr* ether_hdr = (sr_ethernet_hdr *) newpacket;
 
-        /* send it back to whoever sent it (ethernet) */
-        memcpy(ether_hdr->ether_dhost, ether_hdr->ether_shost, ETHER_ADDR_LEN);
+            /* send it back to whoever sent it (ethernet) */
+            memcpy(ether_hdr->ether_dhost, ether_hdr->ether_shost, ETHER_ADDR_LEN);
 
-        /* make sure the ethernet packet header is updated with the new mac */
-        memcpy(ether_hdr->ether_shost, mac_addr, ETHER_ADDR_LEN);
+            /* make sure the ethernet packet header is updated with the new mac */
+            memcpy(ether_hdr->ether_shost, mac_addr, ETHER_ADDR_LEN);
 
-      /* take the old sender address and make it the target */
-        memcpy(new_arp_hdr->ar_tha, new_arp_hdr->ar_sha, ETHER_ADDR_LEN);
+            /* take the old sender address and make it the target */
+            memcpy(new_arp_hdr->ar_tha, new_arp_hdr->ar_sha, ETHER_ADDR_LEN);
 
-      /* load in the discovered MAC address as the sender address */
-        memcpy(new_arp_hdr->ar_sha, mac_addr, ETHER_ADDR_LEN);
+            /* load in the discovered MAC address as the sender address */
+            memcpy(new_arp_hdr->ar_sha, mac_addr, ETHER_ADDR_LEN);
 
-        uint32_t temp = new_arp_hdr->ar_tip;
+            uint32_t temp = new_arp_hdr->ar_tip;
 
-        /* send it back to the IP we got it from */
-        new_arp_hdr->ar_tip = new_arp_hdr->ar_sip;
+            /* send it back to the IP we got it from */
+            new_arp_hdr->ar_tip = new_arp_hdr->ar_sip;
 
-        /* replace IP with what it was sent to */
-        new_arp_hdr->ar_sip = temp;
+            /* replace IP with what it was sent to */
+            new_arp_hdr->ar_sip = temp;
 
-        new_arp_hdr->ar_op = htons(arp_op_reply);
+            new_arp_hdr->ar_op = htons(arp_op_reply);
 
-        int res = 0; 
+            int res = 0; 
 
-        fprintf(stderr, "about to send newpacket\n");
-        res = sr_send_packet(sr, newpacket, len, interface);
-        if (res == 0) {
-          fprintf(stderr, "bad sr_send_packet\n");
-          return;
+            fprintf(stderr, "about to send newpacket\n");
+            res = sr_send_packet(sr, newpacket, len, interface);
+            
+            if (res == 0) {
+                fprintf(stderr, "bad sr_send_packet\n");
+                return;
+            }
+            fprintf(stderr, "sent newpacket\n");
+
+            /* end found */
+        } else {
+            fprintf(stderr, "couldnt find MAC:\n");
         }
-        fprintf(stderr, "sent newpacket\n");
-      } else {
-        fprintf(stderr, "couldnt find MAC:\n");
-      }
 
-    } else if (arp_op == arp_op_reply) { /* this is an incoming reply */
-      fprintf(stderr, "got arp reply\n");
-      } else { /* bad arp_op type */
-      fprintf(stderr, "unknown arp_op type\n");
-      return;
+    } else if (arp_op == arp_op_reply) { 
+        /* this is an incoming reply */
+        fprintf(stderr, "got arp reply\n");
+
+        arpentry = sr_arpcache_lookup(&(sr->cache), arp_hdr->ar_sip);
+        
+        /* if entry isn't already in cache */
+        if (!arpentry) {
+            req = sr_arpcache_insert(&(sr->cache), arp_hdr->ar_sha, arp_hdr->ar_sip);
+
+            /* if there were requests pending on this IP */
+            if(req){
+            /* TODO: there were reqs waiting. send packets */
+                ;
+            }
+        } else { /* entry isn't in cache, we need to send ARP req */
+
+        }
+    } else { /* bad arp_op type */
+        fprintf(stderr, "unknown arp_op type\n");
+        return;
     }
 
-      /* if entry isn't already in cache */
-    if (!arpentry) {
-      req = sr_arpcache_insert(&(sr->cache), arp_hdr->ar_sha, arp_hdr->ar_sip);
-
-        /* if there were requests pending on this IP */
-      if(req){
-          /* TODO: there were reqs waiting. send packets */
-        ;
-
-      }
-      } else { /* entry isn't in cache, we need to send ARP req */
-
-    }
 
     /* sr_arpcache_dump(&(sr->cache)); */
-  } /* end ARP */
-    else {
-      fprintf(stderr, "Unrecognized Ethernet Type: %d\n", ethtype);
-    }
-  /* TODO: fill in code here */
-    return;
-} /* end sr_ForwardPacket */
+
+    /* end ARP */
+
+} else {
+    fprintf(stderr, "Unrecognized Ethernet Type: %d\n", ethtype);
+}
+    /* TODO: fill in code here */
+return;
+
+}
+/* end sr_ForwardPacket */
