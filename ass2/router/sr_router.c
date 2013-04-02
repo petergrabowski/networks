@@ -31,22 +31,22 @@
  *
  *---------------------------------------------------------------------*/
 
-void sr_init(struct sr_instance* sr)
-{
+ void sr_init(struct sr_instance* sr)
+ {
     /* REQUIRES */
-    assert(sr);
+  assert(sr);
 
     /* Initialize cache and cache cleanup thread */
-    sr_arpcache_init(&(sr->cache));
+  sr_arpcache_init(&(sr->cache));
 
-    pthread_attr_init(&(sr->attr));
-    pthread_attr_setdetachstate(&(sr->attr), PTHREAD_CREATE_JOINABLE);
-    pthread_attr_setscope(&(sr->attr), PTHREAD_SCOPE_SYSTEM);
-    pthread_attr_setscope(&(sr->attr), PTHREAD_SCOPE_SYSTEM);
-    pthread_t thread;
+  pthread_attr_init(&(sr->attr));
+  pthread_attr_setdetachstate(&(sr->attr), PTHREAD_CREATE_JOINABLE);
+  pthread_attr_setscope(&(sr->attr), PTHREAD_SCOPE_SYSTEM);
+  pthread_attr_setscope(&(sr->attr), PTHREAD_SCOPE_SYSTEM);
+  pthread_t thread;
 
-    pthread_create(&thread, &(sr->attr), sr_arpcache_timeout, sr);
-    
+  pthread_create(&thread, &(sr->attr), sr_arpcache_timeout, sr);
+
     /* TODO:  Add initialization code here! */
 
 } /* -- sr_init -- */
@@ -67,24 +67,80 @@ void sr_init(struct sr_instance* sr)
  *
  *---------------------------------------------------------------------*/
 
-void sr_handlepacket(struct sr_instance* sr,
+ void sr_handlepacket(struct sr_instance* sr,
         uint8_t * packet/* lent */,
-        unsigned int len,
+  unsigned int len,
         char* interface/* lent */)
-{
+  {
   /* REQUIRES */
-  assert(sr);
-  assert(packet);
-  assert(interface);
+    assert(sr);
+    assert(packet);
+    assert(interface);
 
   /*(printf("*** -> Received packet of length %d, packet = %d, interface = %s \n",len, *packet, interface);*/
 
-  if (len < 42 || len > 1500){
-    fprintf(stderr, "packet was outside size reqs: len = %d\n", len);
-    return;
-  }
+  // Sanity-check the packet 
+  // meets minimum length 
+    if (len < 42 || len > 1500){
+      fprintf(stderr, "packet was outside size reqs: len = %d\n", len);
+      return;
+    }
 
-  print_hdrs(packet, len);
+
+    print_hdrs(packet, len);
+
+  /* Ethernet */
+    int minlength = sizeof(sr_ethernet_hdr_t);
+    if (length < minlength) {
+      fprintf(stderr, "Failed to parse ETHERNET header, insufficient length\n");
+      return;
+    }
+
+    uint16_t ethtype = ethertype(buf);
+    //print_hdr_eth(buf);
+
+  if (ethtype == ethertype_ip) { /* IP */
+    minlength += sizeof(sr_ip_hdr_t);
+    if (length < minlength) {
+      fprintf(stderr, "Failed to parse IP header, insufficient length\n");
+      return;
+    }
+
+    sr_ip_hdr_t *iphdr = (sr_ip_hdr_t *)(buf + sizeof(sr_ethernet_hdr_t));
+
+  // and has correct checksum.
+    uint16_t checksum;
+
+    checksum = cksum(iphdr, sizeof(*iphdr));
+    if (checksum != iphdr->ip_sum){
+      fprintf(stderr, "incorrect checksum\n");
+      return
+    } else {
+      fprintf(stderr, "correct checksum!\n");
+    }
+
+
+    
+    uint8_t ip_proto = ip_protocol(buf + sizeof(sr_ethernet_hdr_t));
+    if (ip_proto == ip_protocol_icmp) { /* ICMP */
+    minlength += sizeof(sr_icmp_hdr_t);
+    if (length < minlength)
+      fprintf(stderr, "Failed to parse ICMP header, insufficient length\n");
+    else
+      // print_hdr_icmp(buf + sizeof(sr_ethernet_hdr_t) + sizeof(sr_ip_hdr_t));
+  }
+} // end IP
+
+else if (ethtype == ethertype_arp) { /* ARP */
+    minlength += sizeof(sr_arp_hdr_t);
+    if (length < minlength)
+      fprintf(stderr, "Failed to parse ARP header, insufficient length\n");
+    else
+      print_hdr_arp(buf + sizeof(sr_ethernet_hdr_t));
+} // end ARP
+else {
+  fprintf(stderr, "Unrecognized Ethernet Type: %d\n", ethtype);
+}
   /* TODO: fill in code here */
 
 }/* end sr_ForwardPacket */
