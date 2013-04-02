@@ -69,7 +69,7 @@
 
  void sr_handlepacket(struct sr_instance* sr,
         uint8_t * packet/* lent */,
-        unsigned int len,
+  unsigned int len,
         char* interface/* lent */)
   {
   /* REQUIRES */
@@ -120,24 +120,23 @@
     } else {
       fprintf(stderr, "correct checksum!\n");
     }
- 
+
     uint8_t ip_proto = ip_protocol(packet + sizeof(sr_ethernet_hdr_t));
     if (ip_proto == ip_protocol_icmp) { /* ICMP */
     minlength += sizeof(sr_icmp_hdr_t);
     if (len < minlength)
       fprintf(stderr, "Failed to parse ICMP header, insufficient length\n");
-} /* end IP */
-
-else if (ethtype == ethertype_arp) { /* ARP */
-    fprintf(stderr, "got a packet, ARP");
-    minlength += sizeof(sr_arp_hdr_t);
-    if (len < minlength)
-      fprintf(stderr, "Failed to parse ARP header, insufficient length\n");
-} /* end ARP */
-else {
-  fprintf(stderr, "Unrecognized Ethernet Type: %d\n", ethtype);
-}
+    } /* end ICMP */
+  } /* end IP */
+  else if (ethtype == ethertype_arp) { /* ARP */
+      fprintf(stderr, "got a packet, ARP");
+      minlength += sizeof(sr_arp_hdr_t);
+      if (len < minlength)
+        fprintf(stderr, "Failed to parse ARP header, insufficient length\n");
+  } /* end ARP */
+  else {
+      fprintf(stderr, "Unrecognized Ethernet Type: %d\n", ethtype);
+  }
   /* TODO: fill in code here */
-return;
-}/* end sr_ForwardPacket */
-}
+  return;
+} /* end sr_ForwardPacket */
