@@ -133,6 +133,9 @@ else if (ethtype == ethertype_arp) { /* ARP */
     minlength += sizeof(sr_arp_hdr_t);
     if (len < minlength)
       fprintf(stderr, "Failed to parse ARP header, insufficient length\n");
+
+    sr_arpcache_dump(&(sr->cache));
+
 } /* end ARP */
 else {
   fprintf(stderr, "Unrecognized Ethernet Type: %d\n", ethtype);
