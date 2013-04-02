@@ -219,6 +219,13 @@
         uint8_t newpacket[len];
         memcpy(newpacket, packet, len);
         sr_arp_hdr_t * new_arp_hdr = (sr_arp_hdr_t *)(newpacket + sizeof(sr_ethernet_hdr_t));
+        struct sr_ethernet_hdr* ether_hdr = newpacket;
+
+        /* send it back to whoever sent it (ethernet) */
+        memcpy(ether_hdr->ether_dhost, ether_hdr->ether_shost, ETHER_ADDR_LEN);
+
+        /* make sure the ethernet packet header is updated with the new mac */
+        memcpy(ether_hdr->ether_shost, mac_addr, ETHER_ADDR_LEN);
 
       /* take the old sender address and make it the target */
         memcpy(new_arp_hdr->ar_tha, new_arp_hdr->ar_sha, ETHER_ADDR_LEN);
@@ -226,17 +233,25 @@
       /* load in the discovered MAC address as the sender address */
         memcpy(new_arp_hdr->ar_sha, mac_addr, ETHER_ADDR_LEN);
 
+        uint32_t temp = new_arp_hdr->ar_tip;
+
+        /* send it back to the IP we got it from */
+        new_arp_hdr->ar_tip = new_arp_hdr->ar_sip;
+
+        /* replace IP with what it was sent to */
+        new_arp_hdr->ar_sip = temp;
+
         new_arp_hdr->ar_op = htons(arp_op_reply);
 
         int res = 0; 
 
         fprintf(stderr, "about to send newpacket\n");
         res = sr_send_packet(sr, newpacket, len, interface);
-        if (res == -1) {
+        if (res == 0) {
           fprintf(stderr, "bad sr_send_packet\n");
           return;
         }
-
+        fprintf(stderr, "sent newpacket\n");
       } else {
         fprintf(stderr, "couldnt find MAC:\n");
       }
