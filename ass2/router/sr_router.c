@@ -155,19 +155,19 @@
 
         struct sr_arpentry * arpentry;
 
-      fprintf(stderr, "got a packet, ARP\n");
-      minlength += sizeof(sr_arp_hdr_t);
-      if (len < minlength){
-        fprintf(stderr, "Failed to parse ARP header, insufficient length\n");
-      }
-      sr_arp_hdr_t *arp_hdr = (sr_arp_hdr_t *)(packet + sizeof(sr_ethernet_hdr_t));
-      int arp_op = ntohs(arp_hdr->ar_op);
-      fprintf(stderr, "arp_op = %x\n", arp_op); 
+        fprintf(stderr, "got a packet, ARP\n");
+        minlength += sizeof(sr_arp_hdr_t);
+        if (len < minlength){
+          fprintf(stderr, "Failed to parse ARP header, insufficient length\n");
+        }
+        sr_arp_hdr_t *arp_hdr = (sr_arp_hdr_t *)(packet + sizeof(sr_ethernet_hdr_t));
+        int arp_op = ntohs(arp_hdr->ar_op);
+        fprintf(stderr, "arp_op = %x\n", arp_op); 
 
-      struct sr_arpreq * req;
-      arpentry = sr_arpcache_lookup(&(sr->cache), arp_hdr->ar_sip);
-      int found = 0;
-      char   interface[sr_IFACE_NAMELEN];
+        struct sr_arpreq * req;
+        arpentry = sr_arpcache_lookup(&(sr->cache), arp_hdr->ar_sip);
+        int found = 0;
+        char   interface[sr_IFACE_NAMELEN];
       /* check to see if the target IP belongs to one of our routers */
         struct sr_rt* rt_walker = sr->routing_table;
         fprintf(stderr, "arp_hdr->ar_sip = %d\n" ,ntohl( arp_hdr->ar_sip));
@@ -200,11 +200,11 @@
         fprintf(stderr, "if_walker interface = %s\n", if_walker->name);
         if (strncmp(interface, if_walker->name, sr_IFACE_NAMELEN) == 0){
           memcpy(mac_addr, if_walker->addr, ETHER_ADDR_LEN);
-	  fprintf(stderr,"iface name = %s\n", if_walker->name);
-	  fprintf(stderr,"found MAC addr '%s'\n", if_walker->addr);
-	  fprintf(stderr,"copied MAC addr %s\n", mac_addr);
-	  fprintf(stderr, "printing if entry\n");
-	  sr_print_if(if_walker);
+          fprintf(stderr,"iface name = %s\n", if_walker->name);
+          fprintf(stderr,"found MAC addr '%s'\n", if_walker->addr);
+          fprintf(stderr,"copied MAC addr %s\n", mac_addr);
+          fprintf(stderr, "printing if entry\n");
+          sr_print_if(if_walker);
           found = 1;
           break;
         }
@@ -215,28 +215,38 @@
       if(found){
         fprintf(stderr, "found MAC:\n");
         DebugMAC(mac_addr);
-	fprintf(stderr, "\n end debugmac \n");
-	
+        fprintf(stderr, "\n end debugmac \n");
+        uint8_t newpacket[len];
+        memcpy(newpacket, packet, len);
+        sr_arp_hdr_t * new_arp_hdr = (sr_arp_hdr_t *)(newpacket + sizeof(sr_ethernet_hdr_t));
+
+      /* take the old sender address and make it the target */
+        memcpy(new_arp_hdr->ar_tha, new_arp_hdr->ar_sha, ETHER_ADDR_LEN);
+
+      /* load in the discovered MAC address as the sender address */
+        memcpy(new_arp_hdr->ar_sha, mac_addr, ETHER_ADDR_LEN);
+
+        new_arp_hdr->ar_op = htons(arp_op_reply);
+
+        int res = 0; 
+
+        fprintf(stderr, "about to send newpacket\n");
+        res = sr_send_packet(sr, newpacket, len, interface);
+        if (res == -1) {
+          fprintf(stderr, "bad sr_send_packet\n");
+          return;
+        }
+
       } else {
         fprintf(stderr, "couldnt find MAC:\n");
       }
-      } else if (arp_op == arp_op_reply) { /* this is an incoming reply */
+
+    } else if (arp_op == arp_op_reply) { /* this is an incoming reply */
       fprintf(stderr, "got arp reply\n");
       } else { /* bad arp_op type */
       fprintf(stderr, "unknown arp_op type\n");
       return;
     }
-      uint8_t newpacket[len];
-      memcpy(newpacket, packet, len);
-      sr_arp_hdr_t * new_arp_hdr = (sr_arp_hdr_t *)(newpacket + sizeof(sr_ethernet_hdr_t));
-
-      /* take the old sender address and make it the target */
-      memcpy(new_arp_hdr->ar_tha, new_arp_hdr->ar_sha, ETHER_ADDR_LEN);
-
-      /* load in the discovered MAC address as the sender address */
-      memcpy(new_arp_hdr->ar_sha, mac_addr, ETHER_ADDR_LEN);
-
-      new_arp_hdr->ar_op = htons(arp_op_reply);
 
       /* if entry isn't already in cache */
     if (!arpentry) {
