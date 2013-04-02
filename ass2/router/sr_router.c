@@ -130,10 +130,19 @@
   } /* end IP */
   else if (ethtype == ethertype_arp) { /* ARP */
       struct sr_arpentry * arpentry;
+
       fprintf(stderr, "got a packet, ARP\n");
       minlength += sizeof(sr_arp_hdr_t);
       if (len < minlength)
         fprintf(stderr, "Failed to parse ARP header, insufficient length\n");
+
+      sr_arp_hdr_t *arp_hdr = (sr_arp_hdr_t *)(packet + sizeof(sr_ethernet_hdr_t));
+  
+      arpentry = sr_arpcache_lookup(sr->cache, arp_hdr->ar_sip);
+      if (!arpentry) {
+        sr_arpcache_insert(sr->cache, arp_hdr->ar_sha, arp_hdr->ar_sip);
+      }      
+
       sr_arpcache_dump(&(sr->cache));
   } /* end ARP */
   else {
