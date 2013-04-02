@@ -69,7 +69,7 @@
 
  void sr_handlepacket(struct sr_instance* sr,
         uint8_t * packet/* lent */,
-  unsigned int len,
+        unsigned int len,
         char* interface/* lent */)
   {
   /* REQUIRES */
@@ -79,69 +79,65 @@
 
   /*(printf("*** -> Received packet of length %d, packet = %d, interface = %s \n",len, *packet, interface);*/
 
-  // Sanity-check the packet 
-  // meets minimum length 
+  /* Sanity-check the packet 
+     meets minimum length */ 
     if (len < 42 || len > 1500){
       fprintf(stderr, "packet was outside size reqs: len = %d\n", len);
       return;
     }
+    
+    fprintf(stderr, "got a packet, processing\n");
 
-
-    print_hdrs(packet, len);
+    /* print_hdrs(packet, len); */
 
   /* Ethernet */
     int minlength = sizeof(sr_ethernet_hdr_t);
-    if (length < minlength) {
+    if (len < minlength) {
       fprintf(stderr, "Failed to parse ETHERNET header, insufficient length\n");
       return;
     }
 
-    uint16_t ethtype = ethertype(buf);
-    //print_hdr_eth(buf);
-
+    uint16_t ethtype = ethertype(packet);
+    /* print_hdr_eth(buf); 
+    fprintf(stderr, "ethtype = %d", ethtype); */
   if (ethtype == ethertype_ip) { /* IP */
     minlength += sizeof(sr_ip_hdr_t);
-    if (length < minlength) {
+    if (len < minlength) {
       fprintf(stderr, "Failed to parse IP header, insufficient length\n");
       return;
     }
 
-    sr_ip_hdr_t *iphdr = (sr_ip_hdr_t *)(buf + sizeof(sr_ethernet_hdr_t));
+    fprintf(stderr, "done with ethernet, now doing IP\n");
+    sr_ip_hdr_t *iphdr = (sr_ip_hdr_t *)(packet + sizeof(sr_ethernet_hdr_t));
 
-  // and has correct checksum.
+    /* and has correct checksum. */
     uint16_t checksum;
 
     checksum = cksum(iphdr, sizeof(*iphdr));
-    if (checksum != iphdr->ip_sum){
+    if (checksum != iphdr->ip_sum) {
       fprintf(stderr, "incorrect checksum\n");
-      return
+      return;
     } else {
       fprintf(stderr, "correct checksum!\n");
     }
-
-
-    
-    uint8_t ip_proto = ip_protocol(buf + sizeof(sr_ethernet_hdr_t));
+ 
+    uint8_t ip_proto = ip_protocol(packet + sizeof(sr_ethernet_hdr_t));
     if (ip_proto == ip_protocol_icmp) { /* ICMP */
     minlength += sizeof(sr_icmp_hdr_t);
-    if (length < minlength)
+    if (len < minlength)
       fprintf(stderr, "Failed to parse ICMP header, insufficient length\n");
-    else
-      // print_hdr_icmp(buf + sizeof(sr_ethernet_hdr_t) + sizeof(sr_ip_hdr_t));
-  }
-} // end IP
+} /* end IP */
 
 else if (ethtype == ethertype_arp) { /* ARP */
+    fprintf(stderr, "got a packet, ARP");
     minlength += sizeof(sr_arp_hdr_t);
-    if (length < minlength)
+    if (len < minlength)
       fprintf(stderr, "Failed to parse ARP header, insufficient length\n");
-    else
-      print_hdr_arp(buf + sizeof(sr_ethernet_hdr_t));
-} // end ARP
+} /* end ARP */
 else {
   fprintf(stderr, "Unrecognized Ethernet Type: %d\n", ethtype);
 }
   /* TODO: fill in code here */
-
+return;
 }/* end sr_ForwardPacket */
-
+}
