@@ -129,19 +129,97 @@
     } /* end ICMP */
   } /* end IP */
   else if (ethtype == ethertype_arp) { /* ARP */
+
+       /*function handle_arpreq(req):
+       if difftime(now, req->sent) > 1.0
+           if req->times_sent >= 5:
+               send icmp host unreachable to source addr of all pkts waiting
+                 on this request
+               arpreq_destroy(req)
+           else:
+               send arp request
+               req->sent = now
+               req->times_sent++ 
+
+
+        The struct sr_instance that represents the router contains a 
+        list with all of the router's interfaces. An interface struct 
+        contains the MAC address of the router.
+
+        short answer - yes for the first part. you wouldn't do 
+        anything with an ARP request that's not for one of your 
+        interfaces. it's not your responsibility to ARP request 
+        another router and then respond to a request
+               */
+
       struct sr_arpentry * arpentry;
 
       fprintf(stderr, "got a packet, ARP\n");
       minlength += sizeof(sr_arp_hdr_t);
-      if (len < minlength)
+      if (len < minlength){
         fprintf(stderr, "Failed to parse ARP header, insufficient length\n");
-
+      }
       sr_arp_hdr_t *arp_hdr = (sr_arp_hdr_t *)(packet + sizeof(sr_ethernet_hdr_t));
-  
+
+      struct sr_arpreq * req;
       arpentry = sr_arpcache_lookup(sr->cache, arp_hdr->ar_sip);
+      int found = 0;
+      char   interface[sr_IFACE_NAMELEN];
+      /* check to see if the target IP belongs to one of our routers */
+      struct sr_rt* rt_walker = sr->routing_table;
+      while(rt_walker){
+        if (*(rt_walker->dest) ==  arp_hdr->ar_tip){
+          found = 1;
+          memcpy(interface, rt_walker->interface, sr_IFACE_NAMELEN);
+          break;
+        }
+        rt_walker = rt_walker->next;
+      }
+
+      /* if its not one of ours, ignore it */
+      if (!found){
+        return;
+      }
+
+      if (arp_hdr->ar_op == arp_op_request){ /* this is an incoming request */
+        fprintf(stderr, "got arp req\n");
+
+        /* look up MAC address in interface list by interface name */
+        found = 0;
+        struct sr_if * if_walker = sr->if_list;
+        unsigned char   mac_addr[ETHER_ADDR_LEN]
+        while (sr_walker){
+          if (strncmp(interface, if_walker->name, sr_IFACE_NAMELEN) == 0){
+            memcpy(mac_addr, if_walker->addr, ETHER_ADDR_LEN);
+            found = 1;
+            break;
+          }
+          sr_walker = sr_walker->next;
+        }
+
+        /* send ARP response */
+        fprintf(stderr, "found MAC:\n");
+        DebugMAC(mac_addr);
+      } else if (arp_hdr->ar_op == arp_op_reply) { /* this is an incoming reply */
+        fprintf(stderr, "got arp reply\n");
+      } else { /* bad arp_op type */
+        fprintf(stderr, "unknown arp_op type\n");
+        return;
+      }
+
+      /* if entry isn't already in cache */
       if (!arpentry) {
-        sr_arpcache_insert(sr->cache, arp_hdr->ar_sha, arp_hdr->ar_sip);
-      }      
+        req = sr_arpcache_insert(sr->cache, arp_hdr->ar_sha, arp_hdr->ar_sip);
+
+        /* if there were requests pending on this IP */
+        if(req){
+          /* TODO: there were reqs waiting. send packets */
+          ;
+
+        }
+      } else { /* entry isn't in cache, we need to send ARP req */
+
+      }
 
       sr_arpcache_dump(&(sr->cache));
   } /* end ARP */
