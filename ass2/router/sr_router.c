@@ -137,10 +137,10 @@
         fprintf(stderr, "Failed to parse ARP header, insufficient length\n");
 
       sr_arp_hdr_t *arp_hdr = (sr_arp_hdr_t *)(packet + sizeof(sr_ethernet_hdr_t));
-  
-      arpentry = sr_arpcache_lookup(sr->cache, arp_hdr->ar_sip);
+      fprintf(stderr, "arp_op = %x", arp_hdr->ar_op); 
+      arpentry = sr_arpcache_lookup(&(sr->cache), arp_hdr->ar_sip);
       if (!arpentry) {
-        sr_arpcache_insert(sr->cache, arp_hdr->ar_sha, arp_hdr->ar_sip);
+        sr_arpcache_insert(&(sr->cache), arp_hdr->ar_sha, arp_hdr->ar_sip);
       }      
 
       sr_arpcache_dump(&(sr->cache));
