@@ -161,7 +161,8 @@
         fprintf(stderr, "Failed to parse ARP header, insufficient length\n");
       }
       sr_arp_hdr_t *arp_hdr = (sr_arp_hdr_t *)(packet + sizeof(sr_ethernet_hdr_t));
-      fprintf(stderr, "arp_op = %x\n", arp_hdr->ar_op); 
+      int arp_op = ntohs(arp_hdr->ar_op)
+      fprintf(stderr, "arp_op = %x\n", arp_op); 
 
       struct sr_arpreq * req;
       arpentry = sr_arpcache_lookup(&(sr->cache), arp_hdr->ar_sip);
@@ -186,7 +187,7 @@
         return;
       }
 
-      if (arp_hdr->ar_op == arp_op_request){ /* this is an incoming request */
+      if (arp_op == arp_op_request){ /* this is an incoming request */
         fprintf(stderr, "got arp req\n");
 
         /* look up MAC address in interface list by interface name */
@@ -205,7 +206,7 @@
         /* send ARP response */
         fprintf(stderr, "found MAC:\n");
         DebugMAC(mac_addr);
-      } else if (arp_hdr->ar_op == arp_op_reply) { /* this is an incoming reply */
+      } else if (arp_op == arp_op_reply) { /* this is an incoming reply */
         fprintf(stderr, "got arp reply\n");
       } else { /* bad arp_op type */
         fprintf(stderr, "unknown arp_op type\n");
