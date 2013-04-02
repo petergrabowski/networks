@@ -161,7 +161,7 @@
         fprintf(stderr, "Failed to parse ARP header, insufficient length\n");
       }
       sr_arp_hdr_t *arp_hdr = (sr_arp_hdr_t *)(packet + sizeof(sr_ethernet_hdr_t));
-      int arp_op = ntohs(arp_hdr->ar_op)
+      int arp_op = ntohs(arp_hdr->ar_op);
       fprintf(stderr, "arp_op = %x\n", arp_op); 
 
       struct sr_arpreq * req;
