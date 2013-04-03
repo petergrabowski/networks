@@ -497,6 +497,7 @@
 
                     struct sr_packet * to_send = req->packets;
                     struct sr_ethernet_hdr * ethr_to_send;
+                    int res;
                     while (to_send){
                         /* update the mac address of each ethernet frame */
                         ethr_to_send = (struct sr_ethernet_hdr *) to_send->buf;
