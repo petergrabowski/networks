@@ -395,10 +395,8 @@
 
         /* check to see if the target IP belongs to one of our routers */
         struct sr_rt* rt_walker = sr->routing_table;
-        fprintf(stderr, "arp_hdr->ar_sip = %d\n" ,ntohl( arp_hdr->ar_sip));
-
+        print_hdrs(packet, len);
         while(rt_walker){
-            fprintf(stderr, "walker dest = %s, int form = %lu\n", inet_ntoa(rt_walker->dest), (unsigned long)ntohl(rt_walker->dest.s_addr));
             if (ntohl(rt_walker->dest.s_addr) ==  ntohl(arp_hdr->ar_sip)){
                 found = 1;
                 memcpy(interface, rt_walker->interface, sr_IFACE_NAMELEN);
@@ -420,13 +418,10 @@
             found = 0;
             struct sr_if * if_walker = sr->if_list;
             unsigned char   mac_addr[ETHER_ADDR_LEN];
-            fprintf(stderr, "interface %s\n", interface);
 
             while (if_walker){
-                fprintf(stderr, "if_walker interface = %s\n", if_walker->name);
                 if (strncmp(interface, if_walker->name, sr_IFACE_NAMELEN) == 0){
                     memcpy(mac_addr, if_walker->addr, ETHER_ADDR_LEN);
-                    fprintf(stderr,"iface name = %s\n", if_walker->name);
                     fprintf(stderr, "printing if entry\n");
                     sr_print_if(if_walker);
                     found = 1;
@@ -467,6 +462,7 @@
                 int res = 0; 
 
                 fprintf(stderr, "about to send arp response\n");
+                print_hdrs(newpacket, len);
                 res = sr_send_packet(sr, newpacket, len, interface);
 
                 if (res != 0) {
@@ -483,6 +479,7 @@
             /* this is an incoming reply */
             fprintf(stderr, "got arp reply\n");
 
+            print_hdrs(packet, len);
             arpentry = sr_arpcache_lookup(&(sr->cache), arp_hdr->ar_sip);
 
             /* if entry isn't already in cache */
