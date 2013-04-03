@@ -89,11 +89,11 @@
         memcpy(eth_hdr->ether_shost, eth_source, len);
 
             /* set arp hdr params */
-        arp_hdr->ar_hrd = htons(1);
-        arp_hdr->ar_pro = htons(2048);
+        arp_hdr->ar_hrd = ntohs(1);
+        arp_hdr->ar_pro = ntohs(2048);
         arp_hdr->ar_hln = 6;
         arp_hdr->ar_pln = 4;
-        arp_hdr->ar_op = htons(arp_op_request);
+        arp_hdr->ar_op = ntohs(arp_op_request);
 
             /* set arp hdr source mac address */ 
         memcpy(arp_hdr->ar_sha, eth_source, len);
@@ -102,13 +102,15 @@
         memcpy(arp_hdr->ar_tha, eth_hdr->ether_dhost, ETHER_ADDR_LEN);
 
             /* set appropriate IPs */
-        arp_hdr->ar_sip = sender_ip;
-        arp_hdr->ar_tip = dest_ip;
+        arp_hdr->ar_sip = ntohl(sender_ip);
+        arp_hdr->ar_tip = ntohl(dest_ip);
 
             /* send packet using correct interface */
         int res = 0; 
 
         fprintf(stderr, "about to send arp req packet\n");
+        print_hdr_eth(arpbuf);
+        print_hdr_arp((uint8_t *) arp_hdr);
         res = sr_send_packet(sr, arpbuf, minlength, iface);
 
         if (res != 0) {
@@ -159,7 +161,7 @@
         return;
     }
 
-    fprintf(stderr, "got a packet, processing\n");
+    fprintf(stderr, "\n\n*****   got a packet, processing\n");
 
     /* print_hdrs(packet, len); */
 
@@ -191,9 +193,7 @@
         if (checksum != 0xffff) {
             fprintf(stderr, "incorrect checksum\n");
             return;
-        } else {
-            fprintf(stderr, "correct checksum!\n");
-        }
+        } 
 
         uint8_t ip_proto = ip_protocol(packet + sizeof(sr_ethernet_hdr_t));
         /* ICMP */
@@ -300,19 +300,26 @@
             if (best_rt) {
                 /* found an interface */
                 fprintf(stderr, "we have an interface to send on: %s\n", best_rt->interface);
+                
+                struct sr_if * best_iface = sr_get_interface(sr, best_rt->interface);
+                if (!best_iface){
+                    fprintf(stderr, "bad iface lookup\n");
+                    return;
+                }
                 struct sr_arpentry * forward_arp_entry;
                 /* TODO: do we need ntohl() below? */
                 forward_arp_entry = sr_arpcache_lookup(&(sr->cache), ntohl(best_rt->gw.s_addr));
                 struct sr_ethernet_hdr * new_ether_hdr = (struct sr_ethernet_hdr * ) newpacket_for_ip; 
                 struct sr_ethernet_hdr * old_ether_hdr = (struct sr_ethernet_hdr * ) packet; 
+            
+                /* ethernet -- update the source address */
+                memcpy(new_ether_hdr->ether_shost, best_iface->addr,  ETHER_ADDR_LEN);
 
                 if (forward_arp_entry) {
                     /* we have a MAC address */
                     fprintf(stderr, "we have a MAC address: %s\n", forward_arp_entry->mac);
 
                     /* update packet */
-                    /* ethernet -- update the source address */
-                    memcpy(new_ether_hdr->ether_shost, old_ether_hdr->ether_dhost, ETHER_ADDR_LEN);
 
                     /* ethernet -- set the dest address */
                     memcpy(new_ether_hdr->ether_dhost, forward_arp_entry->mac, ETHER_ADDR_LEN);
@@ -340,9 +347,11 @@
                         fprintf(stderr, "bad arpreq \n");
                         return;
                     }
-
+		    fprintf(stderr, "interface ip = ");
+                    print_addr_ip_int(ntohl(best_iface->ip));
                     /* TODO: write arpreq */
-                    ip = ntohl(new_iphdr->ip_dst);
+                    ip = ntohl(best_iface->ip);
+                    /*ip = ntohl(new_iphdr->ip_dst);*/
                     dest = ntohl(best_rt->dest.s_addr);
                     sr_handle_arp_req (sr, arpreq, best_iface->addr, ETHER_ADDR_LEN,
                         ip, dest, best_rt->interface); 
@@ -377,9 +386,7 @@
         }
 
         sr_arp_hdr_t *arp_hdr = (sr_arp_hdr_t *)(packet + sizeof(sr_ethernet_hdr_t));
-        print_hdr_arp((uint8_t *)arp_hdr);
         int arp_op = ntohs(arp_hdr->ar_op);
-        fprintf(stderr, "arp_op = %x\n", arp_op); 
 
         struct sr_arpreq * req;
 
@@ -420,8 +427,6 @@
                 if (strncmp(interface, if_walker->name, sr_IFACE_NAMELEN) == 0){
                     memcpy(mac_addr, if_walker->addr, ETHER_ADDR_LEN);
                     fprintf(stderr,"iface name = %s\n", if_walker->name);
-                    fprintf(stderr,"found MAC addr '%s'\n", if_walker->addr);
-                    fprintf(stderr,"copied MAC addr %s\n", mac_addr);
                     fprintf(stderr, "printing if entry\n");
                     sr_print_if(if_walker);
                     found = 1;
@@ -432,9 +437,6 @@
 
 
             if(found){
-                fprintf(stderr, "found MAC:\n");
-                DebugMAC(mac_addr);
-                fprintf(stderr, "\n end debugmac \n");
                 uint8_t newpacket[len];
                 memcpy(newpacket, packet, len);
                 sr_arp_hdr_t * new_arp_hdr = (sr_arp_hdr_t *)(newpacket + sizeof(sr_ethernet_hdr_t));
@@ -464,14 +466,13 @@
 
                 int res = 0; 
 
-                fprintf(stderr, "about to send newpacket\n");
+                fprintf(stderr, "about to send arp response\n");
                 res = sr_send_packet(sr, newpacket, len, interface);
 
                 if (res != 0) {
                     fprintf(stderr, "bad sr_send_packet ARP\n");
                     return;
                 }
-                fprintf(stderr, "sent newpacket\n");
 
             /* end found */
             } else {
@@ -506,6 +507,7 @@
                             fprintf(stderr, "bad packet send after arp reply\n");
                             continue;
                         }
+			to_send = to_send->next;
                     }
                     
                 }
