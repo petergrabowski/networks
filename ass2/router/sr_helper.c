@@ -36,7 +36,7 @@ struct sr_rt* find_best_rt(struct sr_rt* routing_table, uint32_t ip) {
       	ip_rt_walker = ip_rt_walker->next;
       }
 
-      return best_rt
+      return best_rt;
 }
 
 int handle_ip_packet(struct sr_instance * sr, uint8_t * packet, unsigned int len ){
