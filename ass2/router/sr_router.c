@@ -118,7 +118,7 @@
         checksum = cksum(iphdr, sizeof(*iphdr));
         fprintf(stderr, "calc  checksum = %x\n", checksum);
         fprintf(stderr, "given checksum = %x\n", iphdr->ip_sum);
-        if (checksum != iphdr->ip_sum) {
+        if (checksum != 0xffff ) {
             fprintf(stderr, "incorrect checksum\n");
             return;
         } else {
@@ -230,7 +230,7 @@
             uint8_t newpacket[len];
             memcpy(newpacket, packet, len);
             sr_arp_hdr_t * new_arp_hdr = (sr_arp_hdr_t *)(newpacket + sizeof(sr_ethernet_hdr_t));
-            struct sr_ethernet_hdr* ether_hdr = (sr_ethernet_hdr *) newpacket;
+            struct sr_ethernet_hdr* ether_hdr = (struct sr_ethernet_hdr *) newpacket;
 
             /* send it back to whoever sent it (ethernet) */
             memcpy(ether_hdr->ether_dhost, ether_hdr->ether_shost, ETHER_ADDR_LEN);
