@@ -174,7 +174,7 @@ int handle_ip_packet(struct sr_instance * sr, uint8_t * packet, unsigned int len
                         /* is an echo request */
 
                         int res;
-                        res = make_echo_request(&newpacket_for_ip, len, res);
+                        res = make_echo_request(&newpacket_for_ip, len);
 
                         if (res == -1){
                               fprintf(stderr, "bad generate_echo_request\n");
@@ -458,7 +458,7 @@ int make_echo_request(uint8_t ** packet, unsigned int len){
       sr_ip_hdr_t *iphdr = (sr_ip_hdr_t *)(newpacket + sizeof(sr_ethernet_hdr_t));
       
       /* update icmp info */
-      icmp_hdr-icmp_type = 0;
+      icmp_hdr->icmp_type = 0;
       icmp_hdr->icmp_code = 0;
       icmp_hdr->icmp_sum = 0;
       checksum = cksum(icmp_hdr, icmp_len);
@@ -466,12 +466,12 @@ int make_echo_request(uint8_t ** packet, unsigned int len){
 
       /* update IP info */
 
-      iphdr->tos = 0;
+      iphdr->ip_tos = 0;
       iphdr->ip_ttl = 64;
 
       uint32_t temp = iphdr->ip_src;
-      iphdr->ip_src = ip_hdr->ip_dst;
-      iph_hdr->ip_dst = temp;
+      iphdr->ip_src = iphdr->ip_dst;
+      iphdr->ip_dst = temp;
 
       /* update checksum. */
       iphdr->ip_sum = 0;
