@@ -182,7 +182,6 @@
             return;
         } 
 
-        fprintf(stderr, "done with ethernet, now doing IP\n");
         sr_ip_hdr_t *iphdr = (sr_ip_hdr_t *)(packet + sizeof(sr_ethernet_hdr_t));
 
         /* and has correct checksum. */
@@ -217,7 +216,7 @@
 
             /* decrement ttl */
             new_iphdr->ip_ttl--;
-            fprintf(stderr, "new ttl = %d\n", new_iphdr->ip_ttl);
+      
             if (new_iphdr->ip_ttl <= 0) {
                 /* check ttl, less than zero */
                 fprintf(stderr, "ttl was 0 after decrementing, returning\n");
@@ -232,9 +231,8 @@
             checksum = cksum(new_iphdr, sizeof(*new_iphdr));
             if (checksum != 0xffff){
                 fprintf(stderr, "bad new check sum\n");
-            } else {
-                fprintf(stderr, "good new check sum!\n");
             }
+
             /* Find out which entry in the routing table has 
             the longest prefix match with the 
             destination IP address. */
@@ -259,9 +257,8 @@
             while (ip_rt_walker){
                 dest = ntohl(ip_rt_walker->dest.s_addr);
                 mask = ntohl(ip_rt_walker->mask.s_addr);
-                fprintf(stderr, "ip = %x, dest = %x, mask = %x\n", ip, dest, mask);
                 if ((dest & mask) == (ip & mask)) {
-                    fprintf(stderr, "found matching destination\n");
+                    fprintf(stderr, "found matching destination in rt\n");
                     if (mask > maxlen){
                         maxlen = mask;
                         best_rt = ip_rt_walker;
@@ -305,7 +302,7 @@
                 fprintf(stderr, "we have an interface to send on: %s\n", best_rt->interface);
                 struct sr_arpentry * forward_arp_entry;
                 /* TODO: do we need ntohl() below? */
-                forward_arp_entry = sr_arpcache_lookup(&(sr->cache), best_rt->gw.s_addr);
+                forward_arp_entry = sr_arpcache_lookup(&(sr->cache), ntohl(best_rt->gw.s_addr));
                 struct sr_ethernet_hdr * new_ether_hdr = (struct sr_ethernet_hdr * ) newpacket_for_ip; 
                 struct sr_ethernet_hdr * old_ether_hdr = (struct sr_ethernet_hdr * ) packet; 
 
