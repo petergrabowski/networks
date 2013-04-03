@@ -154,13 +154,11 @@ int handle_ip_packet(struct sr_instance * sr, uint8_t * packet, unsigned int len
             fprintf(stderr, "bad new check sum\n");
       }
 
-
-      uint8_t ip_proto = ip_protocol(packet + sizeof(sr_ethernet_hdr_t));
-
-      struct sr_rt* assoc_iface_rt = validate_ip(sr->routing_table, iphdr->ip_src)
+      struct sr_rt* assoc_iface_rt = validate_ip(sr->routing_table, iphdr->ip_src);
       if (assoc_iface_rt) {
             /*it's destined to one of our IPs */
             /* ICMP */
+            uint8_t ip_proto = ip_protocol(packet + sizeof(sr_ethernet_hdr_t));
             if (ip_proto == ip_protocol_icmp) { 
 
                   /* TODO: handle icmp */
