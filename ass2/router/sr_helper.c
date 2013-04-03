@@ -184,7 +184,7 @@ int handle_ip_packet(struct sr_instance * sr, uint8_t * packet, unsigned int len
                   /* end ICMP */
             } else {
                   /* got a udp payload to a rounter interface */
-
+                  ;
                   /* TODO: Port unreachable (type 3, code 3) */
             }
       }
@@ -197,6 +197,7 @@ int handle_ip_packet(struct sr_instance * sr, uint8_t * packet, unsigned int len
       if (!best_rt) {
             /* didn't find an interface, TODO: send an ICMP message type 3 
             code 0, also if there are any errors above */
+            ;
       }
 
       /* found an interface */
@@ -254,8 +255,6 @@ int handle_ip_packet(struct sr_instance * sr, uint8_t * packet, unsigned int len
                   sr_handle_arp_req(sr, arpreq, best_iface->addr, ETHER_ADDR_LEN, ip, dest, best_rt->interface); 
             } 
       }
-      return 0;
-} 
 
 
 
@@ -418,11 +417,10 @@ int generate_echo_request(uint8_t ** packet, unsigned int len){
       int icmp_len = len - (sizeof(sr_ethernet_hdr_t) + sizeof(sr_ip_hdr_t));
       uint16_t checksum;
       struct sr_icmp_hdr * icmp_hdr =  (struct sr_icmp_hdr *) (newpacket + sizeof(sr_ethernet_hdr_t) + sizeof(sr_ip_hdr_t));
-      struct sr_ethernet_hdr* ether_hdr = (struct sr_ethernet_hdr *) newpacket;
       struct sr_ip_hdr *iphdr = (struct sr_ip_hdr *)(newpacket + sizeof(sr_ethernet_hdr_t));
       
       /* update icmp info */
-      icmp_hdr-icmp_type = 0;
+      icmp_hdr->icmp_type = 0;
       icmp_hdr->icmp_code = 0;
       icmp_hdr->icmp_sum = 0;
       checksum = cksum(icmp_hdr, icmp_len);
