@@ -111,7 +111,7 @@
         fprintf(stderr, "about to send arp req packet\n");
         res = sr_send_packet(sr, arpbuf, minlength, iface);
 
-        if (res == 0) {
+        if (res != 0) {
             fprintf(stderr, "bad sr_send_packet arp req\n");
             return -1;
         }
@@ -121,6 +121,7 @@
         return 0;
     }
 }
+    return 0;
 }
 
 
@@ -303,7 +304,6 @@
                 /* found an interface */
                 fprintf(stderr, "we have an interface to send on: %s\n", best_rt->interface);
                 struct sr_arpentry * forward_arp_entry;
-
                 /* TODO: do we need ntohl() below? */
                 forward_arp_entry = sr_arpcache_lookup(&(sr->cache), best_rt->gw.s_addr);
                 struct sr_ethernet_hdr * new_ether_hdr = (struct sr_ethernet_hdr * ) newpacket_for_ip; 
@@ -326,7 +326,7 @@
                     fprintf(stderr, "about to forward ip newpacket\n");
                     res = sr_send_packet(sr, newpacket_for_ip, len, best_rt->interface);
 
-                    if (res == 0) {
+                    if (res != 0) {
                         fprintf(stderr, "bad sr_send_packet IP\n");
                         return;
                     }
@@ -334,7 +334,7 @@
                 } else {
                     /* we dont have a MAC address, add to arp queue */
                     /* TODO: do we need ntohl() below? */
-
+                    struct sr_if * best_iface = sr_get_interface(sr, best_rt->interface);
                     fprintf(stderr, "no mac address =( queueing an arpreq\n");
                     struct sr_arpreq * arpreq;
                     arpreq = sr_arpcache_queuereq(&(sr->cache), best_rt->gw.s_addr, newpacket_for_ip, 
@@ -347,7 +347,7 @@
                     /* TODO: write arpreq */
                     ip = ntohl(new_iphdr->ip_dst);
                     dest = ntohl(best_rt->dest.s_addr);
-                    sr_handle_arp_req (sr, arpreq, new_ether_hdr->ether_shost, ETHER_ADDR_LEN,
+                    sr_handle_arp_req (sr, arpreq, best_iface->addr, ETHER_ADDR_LEN,
                         ip, dest, best_rt->interface); 
                 }
 
@@ -470,7 +470,7 @@
                 fprintf(stderr, "about to send newpacket\n");
                 res = sr_send_packet(sr, newpacket, len, interface);
 
-                if (res == 0) {
+                if (res != 0) {
                     fprintf(stderr, "bad sr_send_packet ARP\n");
                     return;
                 }
