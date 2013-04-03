@@ -55,7 +55,7 @@
 } /* -- sr_init -- */
 
 
-int sr_handle_arp_req (struct sr_arpcache *cache, struct sr_arpreq * arpreq, uint8_t * eth_source, len) {
+int sr_handle_arp_req (struct sr_arpcache *cache, struct sr_arpreq * arpreq, uint8_t * eth_source, int len) {
 
     assert(arpreq);
     time_t now;
