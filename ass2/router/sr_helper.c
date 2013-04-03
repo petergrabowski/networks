@@ -134,7 +134,7 @@ int handle_ip_packet(struct sr_instance * sr, uint8_t * packet, unsigned int len
 
             /* TODO: handle icmp */
             fprintf(stderr, "got ICMP packet\n");
-            minlength += sizeof(sr_icmp_hdr_t) + sizeof(sr_ethernet_hdr_t);
+            int minlength = sizeof(sr_icmp_hdr_t) + sizeof(sr_ethernet_hdr_t);
             if (len < minlength){
                   fprintf(stderr, "Failed to parse ICMP header, insufficient length\n");
                   return -1;
@@ -235,6 +235,7 @@ int handle_ip_packet(struct sr_instance * sr, uint8_t * packet, unsigned int len
                   return 0;
             } 
       }
+      return 0;
 }
 
 
@@ -293,12 +294,13 @@ int send_arp_response(struct sr_instance * sr, struct sr_rt * assoc_iface_rt, ui
 
       fprintf(stderr, "about to send arp reply\n");
       print_hdrs(newpacket, len);
-      res = sr_send_packet(sr, newpacket, len, interface);
+      res = sr_send_packet(sr, newpacket, len, assoc_iface_rt->interface);
 
       if (res != 0) {
             fprintf(stderr, "bad sr_send_packet ARP\n");
             return -1;
       }
+      return 0;
 }
 
 int handle_arp_reply(struct sr_instance * sr, uint8_t * packet, unsigned int len){
@@ -339,6 +341,7 @@ int handle_arp_reply(struct sr_instance * sr, uint8_t * packet, unsigned int len
             }
             to_send = to_send->next;
       }
+      return 0;
 }
 
 int handle_arp_packet(struct sr_instance * sr, uint8_t * packet, unsigned int len ){
