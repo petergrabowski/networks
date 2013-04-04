@@ -494,7 +494,22 @@
                 /* if there were requests pending on this IP */
                 if(req){
                     /* TODO: there were reqs waiting. send packets */
-                    ;
+
+                    struct sr_packet * to_send = req->packets;
+                    struct sr_ethernet_hdr * ethr_to_send;
+                    while (to_send){
+                        /* update the mac address of each ethernet frame */
+                        ethr_to_send = (struct sr_ethernet_hdr *) to_send->buf;
+                        memcpy(ethr_to_send->ether_dhost, arp_hdr->ar_sha, ETHER_ADDR_LEN);
+
+                        res = sr_send_packet(sr, to_send->buf, to_send->len, to_send->iface);
+
+                        if (res != 0){
+                            fprintf(stderr, "bad packet send after arp reply\n");
+                            continue;
+                        }
+                    }
+                    
                 }
             } 
         } else { /* bad arp_op type */
