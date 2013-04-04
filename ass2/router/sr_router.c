@@ -107,7 +107,7 @@
         if (len < minlength) {
             fprintf(stderr, "Failed to parse IP header, insufficient length\n");
             return;
-        }
+        } 
 
         fprintf(stderr, "done with ethernet, now doing IP\n");
         sr_ip_hdr_t *iphdr = (sr_ip_hdr_t *)(packet + sizeof(sr_ethernet_hdr_t));
@@ -116,9 +116,7 @@
         uint16_t checksum;
 
         checksum = cksum(iphdr, sizeof(*iphdr));
-        fprintf(stderr, "calc  checksum = %x\n", checksum);
-        fprintf(stderr, "given checksum = %x\n", iphdr->ip_sum);
-        if (checksum != iphdr->ip_sum) {
+        if (checksum != 0xffff) {
             fprintf(stderr, "incorrect checksum\n");
             return;
         } else {
@@ -126,16 +124,153 @@
         }
 
         uint8_t ip_proto = ip_protocol(packet + sizeof(sr_ethernet_hdr_t));
-
         /* ICMP */
         if (ip_proto == ip_protocol_icmp) { 
+            fprintf(stderr, "got ICMP packet\n");
             minlength += sizeof(sr_icmp_hdr_t);
             if (len < minlength)
                 fprintf(stderr, "Failed to parse ICMP header, insufficient length\n");
-        /* end ICMP */
-        } 
+            /* end ICMP */
+        } else {
+            /* not ICMP, reg IP packet */
+            uint8_t * newpacket_for_ip = (uint8_t *) malloc(len);
+            memcpy(newpacket_for_ip, packet, len);
+            sr_ip_hdr_t *new_iphdr = (sr_ip_hdr_t *)(newpacket_for_ip + sizeof(sr_ethernet_hdr_t));
+
+            /* Decrement the TTL by 1, and recompute the packet 
+            checksum over the modified header. */
+
+            /* decrement ttl */
+            new_iphdr->ip_ttl--;
+
+            if (new_iphdr->ttl <= 0) {
+                /* check ttl, less than zero */
+                fprintf(stderr, "ttl was 0 after decrementing, returning\n");
+                return;
+            }
+
+            /* update checksum. TODO: do we need to zero 
+            checksum first in ip hdr? */
+            new_iphdr->ip_sum = 0;
+            checksum = cksum(new_iphdr, sizeof(*new_iphdr));
+            new_iphdr->ip_sum = checksum;
+
+            /* Find out which entry in the routing table has 
+            the longest prefix match with the 
+            destination IP address. */
+
+            struct sr_rt* ip_rt_walker = sr->routing_table;
+
+            /* In order for an entry to match an IP, the 
+            destination bit-wise ANDed with the mask must 
+            equal the IP also bit-wise ANDed with the mask. 
+            Among this subset, you choose the entry with 
+            the longest mask. In the routing table provided,
+            masks are 255.255.255.255, so matches must be 
+            exact. Once you find a match, you send off the 
+            packet to the gateway through the interface. */
+
+            uint32_t dest, mask, ip, maxlen = 0;
+            struct sr_rt* best_rt = NULL;
+
+            /* TODO: do we need ntohl? */
+            ip = new_iphdr->ip_dst;
+
+            while (ip_rt_walker){
+                dest = ntohl(ip_rt_walker->dest);
+                mask = ntohl(ip_rt_walker->mask);
+                if (dest & mask == ip & mask) {
+                    fprintf(stderr, "found matching destination\n");
+                    if (mask > maxlen){
+                        maxlen = mask;
+                        best_rt = ip_rt_walker;
+                    }
+                }
+                ip_rt_walker = ip_rt_walker->next;
+            }
+
+
+            /* Check the ARP cache for the next-hop 
+            MAC address corresponding to the next-hop 
+            IP. If it's there, send it. Otherwise, 
+            send an ARP request for the next-hop IP 
+            (if one hasn't been sent within the last 
+            second), and add the packet to the queue 
+            of packets waiting on this ARP request. 
+            Obviously, this is a very simplified 
+            version of the forwarding process, and 
+            the low-level details follow. For example, 
+            if an error occurs in any of the above steps, 
+            you will have to send an ICMP message back 
+            to the sender notifying them of an error. 
+            You may also get an ARP request or reply, 
+            which has to interact with the ARP 
+            cache correctly. 
+
+
+            entry = arpcache_lookup(next_hop_ip)
+
+            if entry:
+                -- use next_hop_ip->mac mapping in 
+                entry to send the packet
+                -- free entry
+            else:
+                req = arpcache_queuereq(next_hop_ip, 
+                                        packet, len)
+                handle_arpreq(req)
+            */
+
+                if (best_rt) {
+                /* found an interface */
+
+                    struct sr_arpentry * forward_arp_entry;
+                    forward_arp_entry = sr_arpcache_lookup(sr->cache, best_rt->gw);
+
+                    if (forward_arp_entry) {
+                        /* we have a MAC address */
+                        struct sr_ethernet_hdr * new_ether_hdr = (struct sr_ethernet_hdr * ) newpacket_for_ip; 
+                        struct sr_ethernet_hdr * old_ether_hdr = (struct sr_ethernet_hdr * ) packet; 
+
+                        /* update packet */
+                        /* ethernet -- update the source address */
+                        memcpy(newpacket_for_ip->ether_shost, packet->ether_dhost, ETHER_ADDR_LEN);
+
+                        /* ethernet -- set the dest address */
+                        memcpy(newpacket_for_ip->ether_dhost, forward_arp_entry->mac, ETHER_ADDR_LEN);
+
+                        /* send packet using correct interface */
+                        int res = 0; 
+
+                        fprintf(stderr, "about to forward ip newpacket\n");
+                        res = sr_send_packet(sr, newpacket_for_ip, len, best_rt->interface);
+
+                        if (res == 0) {
+                            fprintf(stderr, "bad sr_send_packet IP\n");
+                            return;
+                        }
+
+                    /* send it */
+                    } else {
+                    /* we dont have a MAC address, add to arp queue */
+
+                        struct sr_arpreq * arpreq;
+                        sr_arpcache_queuereq(sr->cache, best_rt->gw, newpacket_for_ip, 
+                            len, best_rt->interface );
+
+                    /* TODO: write arpreq */
+                    /* handle_arpreq(arpreq); */
+
+                    }
+
+                } else {
+                /* didn't find an interface, TODO: send an ICMP message type 3 code 0 */
+                }
+
+
+
+            }
         /* end IP */
-    } else if (ethtype == ethertype_arp) { 
+        } else if (ethtype == ethertype_arp) { 
         /* begin ARP */
 
        /*function handle_arpreq(req):
@@ -260,7 +395,7 @@
             res = sr_send_packet(sr, newpacket, len, interface);
             
             if (res == 0) {
-                fprintf(stderr, "bad sr_send_packet\n");
+                fprintf(stderr, "bad sr_send_packet ARP\n");
                 return;
             }
             fprintf(stderr, "sent newpacket\n");
