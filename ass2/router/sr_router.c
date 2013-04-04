@@ -198,6 +198,7 @@
         uint8_t ip_proto = ip_protocol(packet + sizeof(sr_ethernet_hdr_t));
         /* ICMP */
         if (ip_proto == ip_protocol_icmp) { 
+            /* TODO: handle icmp */
             fprintf(stderr, "got ICMP packet\n");
             minlength += sizeof(sr_icmp_hdr_t);
             if (len < minlength)
@@ -296,130 +297,122 @@
             else:
                 req = arpcache_queuereq(next_hop_ip, 
                                         packet, len)
-                handle_arpreq(req)
-            */
+                handle_arpreq(req)           */
 
-                if (best_rt) {
+            if (best_rt) {
                 /* found an interface */
-                    fprintf(stderr, "we have an interface to send on: %s\n", best_rt->interface);
-                    struct sr_arpentry * forward_arp_entry;
+                fprintf(stderr, "we have an interface to send on: %s\n", best_rt->interface);
+                struct sr_arpentry * forward_arp_entry;
 
                 /* TODO: do we need ntohl() below? */
-                    forward_arp_entry = sr_arpcache_lookup(&(sr->cache), best_rt->gw.s_addr);
+                forward_arp_entry = sr_arpcache_lookup(&(sr->cache), best_rt->gw.s_addr);
+                struct sr_ethernet_hdr * new_ether_hdr = (struct sr_ethernet_hdr * ) newpacket_for_ip; 
+                struct sr_ethernet_hdr * old_ether_hdr = (struct sr_ethernet_hdr * ) packet; 
 
-                    if (forward_arp_entry) {
+                if (forward_arp_entry) {
                     /* we have a MAC address */
-                        fprintf(stderr, "we have a MAC address: %s\n", forward_arp_entry->mac);
-                        struct sr_ethernet_hdr * new_ether_hdr = (struct sr_ethernet_hdr * ) newpacket_for_ip; 
-                        struct sr_ethernet_hdr * old_ether_hdr = (struct sr_ethernet_hdr * ) packet; 
+                    fprintf(stderr, "we have a MAC address: %s\n", forward_arp_entry->mac);
 
                     /* update packet */
                     /* ethernet -- update the source address */
-                        memcpy(new_ether_hdr->ether_shost, old_ether_hdr->ether_dhost, ETHER_ADDR_LEN);
+                    memcpy(new_ether_hdr->ether_shost, old_ether_hdr->ether_dhost, ETHER_ADDR_LEN);
 
                     /* ethernet -- set the dest address */
-                        memcpy(new_ether_hdr->ether_dhost, forward_arp_entry->mac, ETHER_ADDR_LEN);
+                    memcpy(new_ether_hdr->ether_dhost, forward_arp_entry->mac, ETHER_ADDR_LEN);
 
                     /* send packet using correct interface */
-                        int res = 0; 
+                    int res = 0; 
 
-                        fprintf(stderr, "about to forward ip newpacket\n");
-                        res = sr_send_packet(sr, newpacket_for_ip, len, best_rt->interface);
+                    fprintf(stderr, "about to forward ip newpacket\n");
+                    res = sr_send_packet(sr, newpacket_for_ip, len, best_rt->interface);
 
-                        if (res == 0) {
-                            fprintf(stderr, "bad sr_send_packet IP\n");
-                            return;
-                        }
+                    if (res == 0) {
+                        fprintf(stderr, "bad sr_send_packet IP\n");
+                        return;
+                    }
 
-                    } else {
+                } else {
                     /* we dont have a MAC address, add to arp queue */
                     /* TODO: do we need ntohl() below? */
 
-                        fprintf(stderr, "no mac address =( queueing an arpreq\n");
-                            struct sr_arpreq * arpreq;
-                            arpreq = sr_arpcache_queuereq(&(sr->cache), best_rt->gw.s_addr, newpacket_for_ip, 
-                              len, best_rt->interface );
-                            if (!arpreq){
-                                fprintf(stderr, "bad arpreq \n");
-                                return;
-                            }
-
-
+                    fprintf(stderr, "no mac address =( queueing an arpreq\n");
+                    struct sr_arpreq * arpreq;
+                    arpreq = sr_arpcache_queuereq(&(sr->cache), best_rt->gw.s_addr, newpacket_for_ip, 
+                      len, best_rt->interface );
+                    if (!arpreq){
+                        fprintf(stderr, "bad arpreq \n");
+                        return;
+                    }
 
                     /* TODO: write arpreq */
-                            ip = ntohl(new_iphdr->ip_dst);
-                            dest = ntohl(best_rt->dest.s_addr);
-                            sr_handle_arp_req (sr, arpreq, new_ether_hdr->ether_shost, ETHER_ADDR_LEN,
-                                ip, dest, best_rt->interface); 
+                    ip = ntohl(new_iphdr->ip_dst);
+                    dest = ntohl(best_rt->dest.s_addr);
+                    sr_handle_arp_req (sr, arpreq, new_ether_hdr->ether_shost, ETHER_ADDR_LEN,
+                        ip, dest, best_rt->interface); 
+                }
 
-
-                            
-
-                        } else {
+            } else {
                 /* didn't find an interface, TODO: send an ICMP message type 3 
                 code 0, also if there are any errors above */
-                        }
-
-
-
-                    }
-            /* end IP */
-                } else if (ethtype == ethertype_arp) { 
-            /* begin ARP */
-
-            /* The struct sr_instance that represents the router contains a 
-            list with all of the router's interfaces. An interface struct 
-            contains the MAC address of the router.
-
-            short answer - yes for the first part. you wouldn't do 
-            anything with an ARP request that's not for one of your 
-            interfaces. it's not your responsibility to ARP request 
-            another router and then respond to a request
-                */
-
-            struct sr_arpentry * arpentry;
-
-            fprintf(stderr, "got a packet, ARP\n");
-            minlength += sizeof(sr_arp_hdr_t);
-
-            if (len < minlength){
-                fprintf(stderr, "Failed to parse ARP header, insufficient length\n");
             }
+        }
+        /* end IP */
+    } else if (ethtype == ethertype_arp) { 
+        /* begin ARP */
 
-            sr_arp_hdr_t *arp_hdr = (sr_arp_hdr_t *)(packet + sizeof(sr_ethernet_hdr_t));
-            print_hdr_arp((uint8_t *)arp_hdr);
-            int arp_op = ntohs(arp_hdr->ar_op);
-            fprintf(stderr, "arp_op = %x\n", arp_op); 
+        /* The struct sr_instance that represents the router contains a 
+        list with all of the router's interfaces. An interface struct 
+        contains the MAC address of the router.
 
-            struct sr_arpreq * req;
+        short answer - yes for the first part. you wouldn't do 
+        anything with an ARP request that's not for one of your 
+        interfaces. it's not your responsibility to ARP request 
+        another router and then respond to a request
+            */
 
-            int found = 0;
-            char   interface[sr_IFACE_NAMELEN];
+        struct sr_arpentry * arpentry;
+
+        fprintf(stderr, "got a packet, ARP\n");
+        minlength += sizeof(sr_arp_hdr_t);
+
+        if (len < minlength){
+            fprintf(stderr, "Failed to parse ARP header, insufficient length\n");
+        }
+
+        sr_arp_hdr_t *arp_hdr = (sr_arp_hdr_t *)(packet + sizeof(sr_ethernet_hdr_t));
+        print_hdr_arp((uint8_t *)arp_hdr);
+        int arp_op = ntohs(arp_hdr->ar_op);
+        fprintf(stderr, "arp_op = %x\n", arp_op); 
+
+        struct sr_arpreq * req;
+
+        int found = 0;
+        char   interface[sr_IFACE_NAMELEN];
 
         /* check to see if the target IP belongs to one of our routers */
-            struct sr_rt* rt_walker = sr->routing_table;
-            fprintf(stderr, "arp_hdr->ar_sip = %d\n" ,ntohl( arp_hdr->ar_sip));
+        struct sr_rt* rt_walker = sr->routing_table;
+        fprintf(stderr, "arp_hdr->ar_sip = %d\n" ,ntohl( arp_hdr->ar_sip));
 
-            while(rt_walker){
-                fprintf(stderr, "walker dest = %s, int form = %lu\n", inet_ntoa(rt_walker->dest), (unsigned long)ntohl(rt_walker->dest.s_addr));
-                if (ntohl(rt_walker->dest.s_addr) ==  ntohl(arp_hdr->ar_sip)){
-                    found = 1;
-                    memcpy(interface, rt_walker->interface, sr_IFACE_NAMELEN);
-                    break;
-                }
-                rt_walker = rt_walker->next;
+        while(rt_walker){
+            fprintf(stderr, "walker dest = %s, int form = %lu\n", inet_ntoa(rt_walker->dest), (unsigned long)ntohl(rt_walker->dest.s_addr));
+            if (ntohl(rt_walker->dest.s_addr) ==  ntohl(arp_hdr->ar_sip)){
+                found = 1;
+                memcpy(interface, rt_walker->interface, sr_IFACE_NAMELEN);
+                break;
             }
+            rt_walker = rt_walker->next;
+        }
 
         /* if its not one of ours, ignore it */
-            if (!found){
-                fprintf(stderr, "doesn't belong to one of our interfaces, returning\n\n");
-                return;
-            }
+        if (!found){
+            fprintf(stderr, "doesn't belong to one of our interfaces, returning\n\n");
+            return;
+        }
 
-    if (arp_op == arp_op_request){ /* this is an incoming request */
+        if (arp_op == arp_op_request){ /* this is an incoming request */
             fprintf(stderr, "got arp req\n");
 
-        /* look up MAC address in interface list by interface name */
+            /* look up MAC address in interface list by interface name */
             found = 0;
             struct sr_if * if_walker = sr->if_list;
             unsigned char   mac_addr[ETHER_ADDR_LEN];
@@ -440,7 +433,7 @@
                 if_walker = if_walker->next;
             }
 
-        /* TODO: send ARP response */
+
             if(found){
                 fprintf(stderr, "found MAC:\n");
                 DebugMAC(mac_addr);
@@ -450,24 +443,24 @@
                 sr_arp_hdr_t * new_arp_hdr = (sr_arp_hdr_t *)(newpacket + sizeof(sr_ethernet_hdr_t));
                 struct sr_ethernet_hdr* ether_hdr = (struct sr_ethernet_hdr *) newpacket;
 
-            /* send it back to whoever sent it (ethernet) */
+                /* send it back to whoever sent it (ethernet) */
                 memcpy(ether_hdr->ether_dhost, ether_hdr->ether_shost, ETHER_ADDR_LEN);
 
-            /* make sure the ethernet packet header is updated with the new mac */
+                /* make sure the ethernet packet header is updated with the new mac */
                 memcpy(ether_hdr->ether_shost, mac_addr, ETHER_ADDR_LEN);
 
-            /* take the old sender address and make it the target */
+                /* take the old sender address and make it the target */
                 memcpy(new_arp_hdr->ar_tha, new_arp_hdr->ar_sha, ETHER_ADDR_LEN);
 
-            /* load in the discovered MAC address as the sender address */
+                /* load in the discovered MAC address as the sender address */
                 memcpy(new_arp_hdr->ar_sha, mac_addr, ETHER_ADDR_LEN);
 
                 uint32_t temp = new_arp_hdr->ar_tip;
 
-            /* send it back to the IP we got it from */
+                /* send it back to the IP we got it from */
                 new_arp_hdr->ar_tip = new_arp_hdr->ar_sip;
 
-            /* replace IP with what it was sent to */
+                /* replace IP with what it was sent to */
                 new_arp_hdr->ar_sip = temp;
 
                 new_arp_hdr->ar_op = htons(arp_op_reply);
@@ -489,33 +482,27 @@
             }
 
         } else if (arp_op == arp_op_reply) { 
-        /* this is an incoming reply */
+            /* this is an incoming reply */
             fprintf(stderr, "got arp reply\n");
 
             arpentry = sr_arpcache_lookup(&(sr->cache), arp_hdr->ar_sip);
 
-        /* if entry isn't already in cache */
+            /* if entry isn't already in cache */
             if (!arpentry) {
                 req = sr_arpcache_insert(&(sr->cache), arp_hdr->ar_sha, arp_hdr->ar_sip);
 
-            /* if there were requests pending on this IP */
+                /* if there were requests pending on this IP */
                 if(req){
-            /* TODO: there were reqs waiting. send packets */
+                    /* TODO: there were reqs waiting. send packets */
                     ;
                 }
-        } else { /* entry isn't in cache, we need to send ARP req */
-
-            }
-    } else { /* bad arp_op type */
+            } 
+        } else { /* bad arp_op type */
             fprintf(stderr, "unknown arp_op type\n");
             return;
         }
-
-
-    /* sr_arpcache_dump(&(sr->cache)); */
-
-    /* end ARP */
-
+        /* sr_arpcache_dump(&(sr->cache)); */
+        /* end ARP */
     } else {
         fprintf(stderr, "Unrecognized Ethernet Type: %d\n", ethtype);
     }
