@@ -161,39 +161,27 @@ int handle_ip_packet(struct sr_instance * sr, uint8_t * packet, unsigned int len
             uint8_t ip_proto = ip_protocol(packet + sizeof(sr_ethernet_hdr_t));
             if (ip_proto == ip_protocol_icmp) { 
 
-                  /* TODO: handle icmp */
                   fprintf(stderr, "got ICMP packet\n");
-                  minlength = sizeof(sr_icmp_hdr_t) + sizeof(sr_ethernet_hdr_t) + sizeof(sr_ip_hdr_t);
+                  int minlength = sizeof(sr_icmp_hdr_t) + sizeof(sr_ethernet_hdr_t) + sizeof(sr_ip_hdr_t);
                   if (len < minlength){
                         fprintf(stderr, "Failed to parse ICMP header, insufficient length\n");
                         return -1;
                   }
-
-
-            /* TODO: handle icmp */
-                  fprintf(stderr, "got ICMP packet\n");
-                  int minlength = sizeof(sr_icmp_hdr_t) + sizeof(sr_ethernet_hdr_t);
-                  if (len < minlength){
-                        fprintf(stderr, "Failed to parse ICMP header, insufficient length\n");
-                        return -1;
-                  }
-            /* end ICMP */
 
                   struct sr_icmp_hdr * icmp_hdr =  (struct sr_icmp_hdr *) (packet + sizeof(sr_ethernet_hdr_t) + sizeof(sr_ip_hdr_t));
-
 
                   if(icmp_hdr->icmp_type == 8){
                         /* is an echo request */
 
-
-                        res = generate_echo_request(sr, &newpacket_for_ip, len);
+                        int res;
+                        res = make_echo_request(&newpacket_for_ip, len);
 
                         if (res == -1){
                               fprintf(stderr, "bad generate_echo_request\n");
                               return -1;
                         }
                   }
-                        /* end ICMP */
+                  /* end ICMP */
             } else {
                   /* got a udp payload to a rounter interface */
 
@@ -263,14 +251,12 @@ int handle_ip_packet(struct sr_instance * sr, uint8_t * packet, unsigned int len
                   ip = ntohl(best_iface->ip);
 
                   dest = ntohl(best_rt->dest.s_addr);
-                  sr_handle_arp_req (sr, arpreq, best_iface->addr, ETHER_ADDR_LEN, ip, dest, best_rt->interface); 
-
-                  return 0;
+                  sr_handle_arp_req(sr, arpreq, best_iface->addr, ETHER_ADDR_LEN, ip, dest, best_rt->interface); 
             } 
-            return 0;
-      } 
+      }
       return 0;
-}
+} 
+
 
 
 
