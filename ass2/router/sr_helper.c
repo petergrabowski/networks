@@ -246,7 +246,6 @@ int handle_ip_packet(struct sr_instance * sr, uint8_t * packet, unsigned int len
       } else {
             /* we dont have a MAC address, add to arp queue */
             fprintf(stderr, "no mac address =( queueing an arpreq\n");
-<<<<<<< HEAD
                   struct sr_arpreq * arpreq;
                   fprintf(stderr, "queueing ip address: ");
                   print_addr_ip_int(best_rt->gw.s_addr);
@@ -266,27 +265,7 @@ int handle_ip_packet(struct sr_instance * sr, uint8_t * packet, unsigned int len
                   sr_handle_arp_req(sr, arpreq); 
             } 
       }
-=======
-            struct sr_arpreq * arpreq;
-            fprintf(stderr, "queueing ip address: ");
-            print_addr_ip_int(best_rt->gq.s_addr);
-            fprintf(stderr, "on %s\n", best_rt->interface);
-            arpreq = sr_arpcache_queuereq(&(sr->cache), best_rt->gw.s_addr, newpacket_for_ip, 
-                  len, best_rt->interface );
-            if (!arpreq){
-                  fprintf(stderr, "bad arpreq \n");
-                  return -1;
-            }
-            uint32_t ip, dest;
-            fprintf(stderr, "interface ip = ");
-            print_addr_ip_int(ntohl(best_iface->ip));
-            ip = ntohl(best_iface->ip);
 
-            dest = ntohl(best_rt->dest.s_addr);
-            sr_handle_arp_req(sr, arpreq, best_iface->addr, ETHER_ADDR_LEN, ip, dest, best_rt->interface); 
-      } 
-}
->>>>>>> debugging arp
 
 
 
