@@ -154,7 +154,7 @@ int handle_ip_packet(struct sr_instance * sr, uint8_t * packet, unsigned int len
             fprintf(stderr, "bad new check sum\n");
       }
 
-      struct sr_rt* assoc_iface = validate_ip(sr->iface_list, iphdr->ip_src);
+      struct sr_rt* assoc_iface = validate_ip(sr->if_list, iphdr->ip_src);
       if (assoc_iface) {
             /*it's destined to one of our IPs */
             /* ICMP */
@@ -264,7 +264,11 @@ struct sr_if* validate_ip(struct sr_if * if_list, uint32_t ip) {
 
 /* check to see if the target IP belongs to one of our routers */
       struct sr_if* if_walker = if_list;
+      fprintf(stderr,"searching for this ip: ");
+      print_addr_ip_int(ip);
       while(if_walker){
+            fprintf(stderr, "found this ip: ");
+            print_addr_ip_int(if_walker->ip);
             if (ntohl(if_walker->ip) ==  ntohl(ip)){
                   return if_walker;
             }
@@ -369,7 +373,7 @@ int handle_arp_packet(struct sr_instance * sr, uint8_t * packet, unsigned int le
       print_hdrs(packet, len);
 
 /* check to see if the target IP belongs to one of our routers */
-      struct sr_if* assoc_iface = validate_ip(sr->if_list, arp_hdr->ar_sip); 
+      struct sr_if* assoc_iface = validate_ip(sr->if_list, arp_hdr->ar_tip); 
 
 /* if its not one of ours, ignore it */
       if (!assoc_iface){
