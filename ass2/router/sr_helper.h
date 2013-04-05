@@ -16,7 +16,7 @@ struct sr_if* validate_ip(struct sr_if * iface_list, uint32_t ip) ;
 int send_arp_response(struct sr_instance * sr, struct sr_if * assoc_if, uint8_t * packet, unsigned int len);
 int handle_arp_reply(struct sr_instance * sr, uint8_t * packet, unsigned int len);
 int handle_arp_packet(struct sr_instance * sr, uint8_t * packet, unsigned int len );
-int sr_handle_arp_req (struct sr_instance * sr, struct sr_arpreq * arpreq, uint8_t * eth_source, int len,
-	uint32_t sender_ip, uint32_t dest_ip, char * iface);
+int sr_handle_arp_req (struct sr_instance * sr, struct sr_arpreq * arpreq);
+
 
 #endif

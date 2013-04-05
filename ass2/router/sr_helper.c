@@ -43,13 +43,14 @@ int sr_handle_arp_req (struct sr_instance * sr, struct sr_arpreq * arpreq) {
       for (i = 0; i < ETHER_ADDR_LEN; i++){
             eth_hdr->ether_dhost[i] = 0xff;
       }
-
-      struct sr_rt* best_rt = find_best_rt(sr->routing_table,  ntohl(arp_req->ip));         
+      /* TODO: removed ntohl on arpreq ip */
+      struct sr_rt* best_rt = find_best_rt(sr->routing_table, ntohl( arpreq->ip));
 
       if (!best_rt) {
       /* didn't find an interface, TODO: send an ICMP message type 3 
       code 0, also if there are any errors above */
-            ;
+           fprintf(stderr, "no interface found for this packet\n");
+           return 0;
       }
       struct sr_if* best_if = sr_get_interface(sr, best_rt->interface);
 
@@ -61,17 +62,17 @@ int sr_handle_arp_req (struct sr_instance * sr, struct sr_arpreq * arpreq) {
       arp_hdr->ar_op = ntohs(arp_op_request);
 
       /* set eth hdr source mac address */ 
-      memcpy(eth_hdr->ether_shost, best_if->addr, len);
+      memcpy(eth_hdr->ether_shost, best_if->addr, ETHER_ADDR_LEN);
 
       /* set arp hdr source mac address */ 
-      memcpy(arp_hdr->ar_sha, best_if->addr, len);
+      memcpy(arp_hdr->ar_sha, best_if->addr, ETHER_ADDR_LEN);
 
       /* set arp hdr dest mac address to  FF:FF:FF:FF:FF:FF */ 
       memcpy(arp_hdr->ar_tha, eth_hdr->ether_dhost, ETHER_ADDR_LEN);
 
       /* set appropriate IPs */
-      arp_hdr->ar_sip = ntohl(best_if->ip);
-      arp_hdr->ar_tip = ntohl(arpreq->dest_ip);
+      arp_hdr->ar_sip = best_if->ip;
+      arp_hdr->ar_tip = arpreq->ip;
 
       /* send packet using correct interface */
       int res = 0; 
@@ -79,7 +80,7 @@ int sr_handle_arp_req (struct sr_instance * sr, struct sr_arpreq * arpreq) {
       fprintf(stderr, "about to send arp req packet\n");
       print_hdr_eth(arpbuf);
       print_hdr_arp((uint8_t *) arp_hdr);
-      res = sr_send_packet(sr, arpbuf, minlength, iface);
+      res = sr_send_packet(sr, arpbuf, minlength,best_if->name );
 
       if (res != 0) {
             fprintf(stderr, "bad sr_send_packet arp req\n");
@@ -99,12 +100,14 @@ struct sr_rt* find_best_rt(struct sr_rt* routing_table, uint32_t ip) {
 
       struct sr_rt* ip_rt_walker = routing_table;
 
-      uint32_t dest, mask, maxlen = 0;
+      uint32_t dest, mask,  maxlen = 0;
       struct sr_rt* best_rt = NULL;
-
       while (ip_rt_walker){
       	dest = ntohl(ip_rt_walker->dest.s_addr);
       	mask = ntohl(ip_rt_walker->mask.s_addr);
+        fprintf(stderr, "\n\n\n in find best rt\n");
+        print_addr_ip_int(dest);
+        print_addr_ip_int(ip);
       	if ((dest & mask) == (ip & mask)) {
       		fprintf(stderr, "found matching destination in rt\n");
       		if (mask > maxlen){
@@ -159,7 +162,7 @@ int handle_ip_packet(struct sr_instance * sr, uint8_t * packet, unsigned int len
             fprintf(stderr, "bad new check sum\n");
       }
 
-      struct sr_rt* assoc_iface = validate_ip(sr->if_list, iphdr->ip_src);
+      struct sr_if* assoc_iface = validate_ip(sr->if_list, iphdr->ip_src);
       if (assoc_iface) {
             /*it's destined to one of our IPs */
             /* ICMP */
@@ -199,7 +202,6 @@ int handle_ip_packet(struct sr_instance * sr, uint8_t * packet, unsigned int len
       the longest prefix match with the 
       destination IP address. */
       struct sr_rt* best_rt = find_best_rt(sr->routing_table,  ntohl(new_iphdr->ip_dst));         
-
       if (!best_rt) {
             /* didn't find an interface, TODO: send an ICMP message type 3 
             code 0, also if there are any errors above */
@@ -246,7 +248,7 @@ int handle_ip_packet(struct sr_instance * sr, uint8_t * packet, unsigned int len
             fprintf(stderr, "no mac address =( queueing an arpreq\n");
                   struct sr_arpreq * arpreq;
                   fprintf(stderr, "queueing ip address: ");
-                  print_addr_ip_int(best_rt->gq.s_addr);
+                  print_addr_ip_int(best_rt->gw.s_addr);
                   fprintf(stderr, "on %s\n", best_rt->interface);
                   arpreq = sr_arpcache_queuereq(&(sr->cache), best_rt->gw.s_addr, newpacket_for_ip, 
                         len, best_rt->interface );
@@ -260,7 +262,7 @@ int handle_ip_packet(struct sr_instance * sr, uint8_t * packet, unsigned int len
                   ip = ntohl(best_iface->ip);
 
                   dest = ntohl(best_rt->dest.s_addr);
-                  sr_handle_arp_req(sr, arpreq, best_iface->addr, ETHER_ADDR_LEN, ip, dest, best_rt->interface); 
+                  sr_handle_arp_req(sr, arpreq); 
             } 
       }
 
