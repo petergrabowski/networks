@@ -174,7 +174,7 @@ int handle_ip_packet(struct sr_instance * sr, uint8_t * packet, unsigned int len
                         /* is an echo request */
 
                         int res;
-                        res = make_echo_request(&newpacket_for_ip, len);
+                        res = make_echo_request(&newpacket_for_ip, len, res);
 
                         if (res == -1){
                               fprintf(stderr, "bad generate_echo_request\n");
