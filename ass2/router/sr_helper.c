@@ -18,15 +18,23 @@ int sr_handle_arp_req (struct sr_instance * sr, struct sr_arpreq * arpreq) {
       assert(arpreq);
       time_t now;
       time(&now);
-
+      int res;
       if (difftime(now, arpreq->sent) <= 1.0){
             fprintf(stderr, "arpreq less than 1 sec\n");
             return 0;
       }
 
       if (arpreq->times_sent >= 5){
-      /* TODO: send icmp host unreachable to source addr of 
-      all pkts waiting on this request */
+      /* send icmp host unreachable to source addr of 
+      all pkts waiting on this request type 3 code 1*/
+            struct sr_packet *packet_walker = arpreq->packets;
+            while (packet_walker){
+                  res = send_icmp_message(sr, packet_walker->buf, 3,  1);
+                  if (res == -1){
+                        fprintf(stderr, "bad icmp send, 5x\n");
+                        return -1;
+                  }
+            }
             sr_arpreq_destroy(&(sr->cache), arpreq);
       }
       int minlength = sizeof(sr_ethernet_hdr_t) + sizeof(sr_arp_hdr_t);
@@ -43,14 +51,19 @@ int sr_handle_arp_req (struct sr_instance * sr, struct sr_arpreq * arpreq) {
       for (i = 0; i < ETHER_ADDR_LEN; i++){
             eth_hdr->ether_dhost[i] = 0xff;
       }
-      /* TODO: removed ntohl on arpreq ip */
+
       struct sr_rt* best_rt = find_best_rt(sr->routing_table, ntohl( arpreq->ip));
 
       if (!best_rt) {
-      /* didn't find an interface, TODO: send an ICMP message type 3 
+      /* didn't find an interface, send an ICMP message type 3 
       code 0, also if there are any errors above */
-           fprintf(stderr, "no interface found for this packet\n");
-           return 0;
+            res = send_icmp_message(sr, packet_walker->buf, 3,  0);
+            if (res == -1){
+                  fprintf(stderr, "bad icmp, no iface\n");
+                  return -1;
+            }
+            fprintf(stderr, "no interface found for this packet\n");
+            return 0;
       }
       struct sr_if* best_if = sr_get_interface(sr, best_rt->interface);
 
@@ -108,17 +121,17 @@ struct sr_rt* find_best_rt(struct sr_rt* routing_table, uint32_t ip) {
         fprintf(stderr, "in find best rt\n");
         print_addr_ip_int(ntohl(dest));
         print_addr_ip_int(ntohl(ip));
-      	if ((dest & mask) == (ip & mask)) {
-      		fprintf(stderr, "found matching destination in rt\n");
-      		if (mask > maxlen){
-      			maxlen = mask;
-      			best_rt = ip_rt_walker;
-      		}
-      	}
-      	ip_rt_walker = ip_rt_walker->next;
-      }
+        if ((dest & mask) == (ip & mask)) {
+              fprintf(stderr, "found matching destination in rt\n");
+              if (mask > maxlen){
+               maxlen = mask;
+               best_rt = ip_rt_walker;
+         }
+   }
+   ip_rt_walker = ip_rt_walker->next;
+}
 
-      return best_rt;
+return best_rt;
 }
 
 int handle_ip_packet(struct sr_instance * sr, uint8_t * packet, unsigned int len ) {
@@ -192,7 +205,11 @@ int handle_ip_packet(struct sr_instance * sr, uint8_t * packet, unsigned int len
             } else {
                   /* got a udp payload to a rounter interface */
                   ;
-                  /* TODO: Port unreachable (type 3, code 3) */
+                  res = send_icmp_message(sr, packet_walker->buf, 3,  3);
+                  if (res == -1){
+                        fprintf(stderr, "bad icmp send, port unreachable\n");
+                        return -1;
+                  }
             }
       }
 
@@ -202,8 +219,13 @@ int handle_ip_packet(struct sr_instance * sr, uint8_t * packet, unsigned int len
       destination IP address. */
       struct sr_rt* best_rt = find_best_rt(sr->routing_table,  ntohl(new_iphdr->ip_dst));         
       if (!best_rt) {
-            /* didn't find an interface, TODO: send an ICMP message type 3 
+            /* didn't find an interface, send an ICMP message type 3 
             code 0, also if there are any errors above */
+            res = send_icmp_message(sr, packet_walker->buf, 3,  0);
+            if (res == -1){
+                  fprintf(stderr, "bad icmp, no iface\n");
+                  return -1;
+            }
             fprintf(stderr, "no rt entry found\n");;
       }
 
@@ -265,233 +287,310 @@ int handle_ip_packet(struct sr_instance * sr, uint8_t * packet, unsigned int len
                   dest = ntohl(best_rt->dest.s_addr);
                   sr_handle_arp_req(sr, arpreq); 
             } 
-	return 0;      
-}
+            return 0;      
+      }
 
 
 
 
 
-struct sr_if* validate_ip(struct sr_if * if_list, uint32_t ip) {
+      struct sr_if* validate_ip(struct sr_if * if_list, uint32_t ip) {
 
 /* check to see if the target IP belongs to one of our routers */
-      struct sr_if* if_walker = if_list;
-      while(if_walker){
-            print_addr_ip_int(if_walker->ip);
-            print_addr_ip_int(ip);
-            if (ntohl(if_walker->ip) ==  ntohl(ip)){
-                  return if_walker;
-            }
-            if_walker = if_walker->next;
-      }     
-      return NULL;
-}
+            struct sr_if* if_walker = if_list;
+            while(if_walker){
+                  print_addr_ip_int(if_walker->ip);
+                  print_addr_ip_int(ip);
+                  if (ntohl(if_walker->ip) ==  ntohl(ip)){
+                        return if_walker;
+                  }
+                  if_walker = if_walker->next;
+            }     
+            return NULL;
+      }
 
 
-int send_arp_response(struct sr_instance * sr, struct sr_if * assoc_iface, uint8_t * packet, unsigned int len) {
+      int send_arp_response(struct sr_instance * sr, struct sr_if * assoc_iface, uint8_t * packet, unsigned int len) {
 
-      int res; 
+            int res; 
 
 /* we have a MAC address */
-      uint8_t newpacket[len];
-      memcpy(newpacket, packet, len);
-      struct sr_arp_hdr * new_arp_hdr = (sr_arp_hdr_t *)(newpacket + sizeof(sr_ethernet_hdr_t));
-      struct sr_ethernet_hdr* ether_hdr = (struct sr_ethernet_hdr *) newpacket;
+            uint8_t newpacket[len];
+            memcpy(newpacket, packet, len);
+            struct sr_arp_hdr * new_arp_hdr = (sr_arp_hdr_t *)(newpacket + sizeof(sr_ethernet_hdr_t));
+            struct sr_ethernet_hdr* ether_hdr = (struct sr_ethernet_hdr *) newpacket;
 
 /* send it back to whoever sent it (ethernet) */
-      memcpy(ether_hdr->ether_dhost, ether_hdr->ether_shost, ETHER_ADDR_LEN);
+            memcpy(ether_hdr->ether_dhost, ether_hdr->ether_shost, ETHER_ADDR_LEN);
 
 /* make sure the ethernet packet header is updated with the new mac */
-      memcpy(ether_hdr->ether_shost, assoc_iface->addr, ETHER_ADDR_LEN);
+            memcpy(ether_hdr->ether_shost, assoc_iface->addr, ETHER_ADDR_LEN);
 
 /* take the old sender address and make it the target */
-      memcpy(new_arp_hdr->ar_tha, new_arp_hdr->ar_sha, ETHER_ADDR_LEN);
+            memcpy(new_arp_hdr->ar_tha, new_arp_hdr->ar_sha, ETHER_ADDR_LEN);
 
 /* load in the discovered MAC address as the sender address */
-      memcpy(new_arp_hdr->ar_sha, assoc_iface->addr, ETHER_ADDR_LEN);
+            memcpy(new_arp_hdr->ar_sha, assoc_iface->addr, ETHER_ADDR_LEN);
 
-      uint32_t temp = new_arp_hdr->ar_tip;
+            uint32_t temp = new_arp_hdr->ar_tip;
 
 /* send it back to the IP we got it from */
-      new_arp_hdr->ar_tip = new_arp_hdr->ar_sip;
+            new_arp_hdr->ar_tip = new_arp_hdr->ar_sip;
 
 /* replace IP with what it was sent to */
-      new_arp_hdr->ar_sip = temp;
+            new_arp_hdr->ar_sip = temp;
 
 /* set arp op to reply */
-      new_arp_hdr->ar_op = htons(arp_op_reply);
+            new_arp_hdr->ar_op = htons(arp_op_reply);
 
-      fprintf(stderr, "about to send arp reply\n");
+            fprintf(stderr, "about to send arp reply\n");
       /*print_hdrs(newpacket, len); */
-      res = sr_send_packet(sr, newpacket, len, assoc_iface->name);
+            res = sr_send_packet(sr, newpacket, len, assoc_iface->name);
 
-      if (res != 0) {
-            fprintf(stderr, "bad sr_send_packet ARP\n");
-            return -1;
+            if (res != 0) {
+                  fprintf(stderr, "bad sr_send_packet ARP\n");
+                  return -1;
+            }
+            return 0;
       }
-      return 0;
-}
 
-int handle_arp_reply(struct sr_instance * sr, uint8_t * packet, unsigned int len){
+      int handle_arp_reply(struct sr_instance * sr, uint8_t * packet, unsigned int len){
 
-      struct sr_arp_hdr *arp_hdr = (struct sr_arp_hdr *)(packet + sizeof(sr_ethernet_hdr_t));
-      struct sr_arpentry *arpentry = sr_arpcache_lookup(&(sr->cache),arp_hdr->ar_sip);
+            struct sr_arp_hdr *arp_hdr = (struct sr_arp_hdr *)(packet + sizeof(sr_ethernet_hdr_t));
+            struct sr_arpentry *arpentry = sr_arpcache_lookup(&(sr->cache),arp_hdr->ar_sip);
 
 /* if entry isn't already in cache */
-      if (arpentry) {
-            fprintf(stderr, "entry already in cache\n");
-            return 0;
-      }
-      struct sr_arpreq *req = sr_arpcache_insert(&(sr->cache), arp_hdr->ar_sha, arp_hdr->ar_sip);
-      fprintf(stderr, "just added ");
-      print_addr_eth(arp_hdr->ar_sha);
-      fprintf(stderr, " to ");
-      print_addr_ip_int(ntohl(arp_hdr->ar_sip));
+            if (arpentry) {
+                  fprintf(stderr, "entry already in cache\n");
+                  return 0;
+            }
+            struct sr_arpreq *req = sr_arpcache_insert(&(sr->cache), arp_hdr->ar_sha, arp_hdr->ar_sip);
+            fprintf(stderr, "just added ");
+            print_addr_eth(arp_hdr->ar_sha);
+            fprintf(stderr, " to ");
+            print_addr_ip_int(ntohl(arp_hdr->ar_sip));
 
 /* if there were requests pending on this IP */
-      if(!req){
-            fprintf(stderr, "there were no req pending on this IP\n");
+            if(!req){
+                  fprintf(stderr, "there were no req pending on this IP\n");
+                  return 0;
+            }
+
+            struct sr_packet * to_send = req->packets;
+            struct sr_ethernet_hdr * ethr_to_send;
+            int res;
+
+/* send all packets waiting on this IP */
+            while (to_send){
+
+/* update the mac address of each ethernet frame */
+                  ethr_to_send = (struct sr_ethernet_hdr *) to_send->buf;
+                  memcpy(ethr_to_send->ether_dhost, arp_hdr->ar_sha, ETHER_ADDR_LEN);
+
+                  res = sr_send_packet(sr, to_send->buf, to_send->len, to_send->iface);
+
+                  if (res != 0){
+                        fprintf(stderr, "bad packet send after arp reply\n");
+                        continue;
+                  }
+                  to_send = to_send->next;
+            }
             return 0;
       }
 
-      struct sr_packet * to_send = req->packets;
-      struct sr_ethernet_hdr * ethr_to_send;
-      int res;
+      int handle_arp_packet(struct sr_instance * sr, uint8_t * packet, unsigned int len ){
 
-/* send all packets waiting on this IP */
-      while (to_send){
+            int res;
 
-/* update the mac address of each ethernet frame */
-            ethr_to_send = (struct sr_ethernet_hdr *) to_send->buf;
-            memcpy(ethr_to_send->ether_dhost, arp_hdr->ar_sha, ETHER_ADDR_LEN);
-
-            res = sr_send_packet(sr, to_send->buf, to_send->len, to_send->iface);
-
-            if (res != 0){
-                  fprintf(stderr, "bad packet send after arp reply\n");
-                  continue;
-            }
-            to_send = to_send->next;
-      }
-      return 0;
-}
-
-int handle_arp_packet(struct sr_instance * sr, uint8_t * packet, unsigned int len ){
-
-      int res;
-
-      struct sr_arp_hdr *arp_hdr = (struct sr_arp_hdr *)(packet + sizeof(sr_ethernet_hdr_t));
-      int arp_op = ntohs(arp_hdr->ar_op);
+            struct sr_arp_hdr *arp_hdr = (struct sr_arp_hdr *)(packet + sizeof(sr_ethernet_hdr_t));
+            int arp_op = ntohs(arp_hdr->ar_op);
 
       /*print_hdrs(packet, len); */
 
 /* check to see if the target IP belongs to one of our routers */
-      struct sr_if* assoc_iface = validate_ip(sr->if_list, arp_hdr->ar_tip); 
+            struct sr_if* assoc_iface = validate_ip(sr->if_list, arp_hdr->ar_tip); 
 
 /* if its not one of ours, ignore it */
-      if (!assoc_iface){
-            fprintf(stderr, "doesn't belong to one of our interfaces, returning\n\n");
-            return -1;
-      }
-
-      if (arp_op == arp_op_request){ 
-/* this is an incoming request */
-            fprintf(stderr, "got arp req\n");
-
-            res = send_arp_response(sr, assoc_iface,  packet,  len);
-
-            if (res != 0){
-                  fprintf(stderr, "bad send_arp_response\n");
+            if (!assoc_iface){
+                  fprintf(stderr, "doesn't belong to one of our interfaces, returning\n\n");
                   return -1;
             }
 
+            if (arp_op == arp_op_request){ 
+/* this is an incoming request */
+                  fprintf(stderr, "got arp req\n");
 
-      } else if (arp_op == arp_op_reply) { 
+                  res = send_arp_response(sr, assoc_iface,  packet,  len);
+
+                  if (res != 0){
+                        fprintf(stderr, "bad send_arp_response\n");
+                        return -1;
+                  }
+
+
+            } else if (arp_op == arp_op_reply) { 
 /* this is an incoming reply */
-            fprintf(stderr, "got arp reply\n");
+                  fprintf(stderr, "got arp reply\n");
             /*print_hdrs(packet, len); */
 
-            res = handle_arp_reply(sr, packet, len);
-            if (res != 0){
-                  fprintf(stderr, "bad handle_arp_reply\n");
+                  res = handle_arp_reply(sr, packet, len);
+                  if (res != 0){
+                        fprintf(stderr, "bad handle_arp_reply\n");
+                        return -1;
+                  }
+            } else { 
+/* bad arp_op type */
+                  fprintf(stderr, "unknown arp_op type\n");
                   return -1;
             }
-      } else { 
-/* bad arp_op type */
-            fprintf(stderr, "unknown arp_op type\n");
-            return -1;
+            return 0;
       }
-      return 0;
-}
-int generate_echo_request(uint8_t ** packet, unsigned int len){
+      int generate_echo_request(uint8_t ** packet, unsigned int len){
 
-      uint8_t *newpacket = *packet;
-      int icmp_len = len - (sizeof(sr_ethernet_hdr_t) + sizeof(sr_ip_hdr_t));
-      uint16_t checksum;
-      struct sr_icmp_hdr * icmp_hdr =  (struct sr_icmp_hdr *) (newpacket + sizeof(sr_ethernet_hdr_t) + sizeof(sr_ip_hdr_t));
-      struct sr_ip_hdr *iphdr = (struct sr_ip_hdr *)(newpacket + sizeof(sr_ethernet_hdr_t));
+            uint8_t *newpacket = *packet;
+            int icmp_len = len - (sizeof(sr_ethernet_hdr_t) + sizeof(sr_ip_hdr_t));
+            uint16_t checksum;
+            struct sr_icmp_hdr * icmp_hdr =  (struct sr_icmp_hdr *) (newpacket + sizeof(sr_ethernet_hdr_t) + sizeof(sr_ip_hdr_t));
+            struct sr_ip_hdr *iphdr = (struct sr_ip_hdr *)(newpacket + sizeof(sr_ethernet_hdr_t));
 
 /* update icmp info */
-      icmp_hdr->icmp_type = 0;
-      icmp_hdr->icmp_code = 0;
-      icmp_hdr->icmp_sum = 0;
-      checksum = cksum(icmp_hdr, icmp_len);
-      icmp_hdr->icmp_sum = checksum;
+            icmp_hdr->icmp_type = 0;
+            icmp_hdr->icmp_code = 0;
+            icmp_hdr->icmp_sum = 0;
+            checksum = cksum(icmp_hdr, icmp_len);
+            icmp_hdr->icmp_sum = checksum;
 
 /* update IP info */
 
-      iphdr->ip_tos = 0;
-      iphdr->ip_ttl = 64;
+            iphdr->ip_tos = 0;
+            iphdr->ip_ttl = 64;
 
-      uint32_t temp = iphdr->ip_src;
+            uint32_t temp = iphdr->ip_src;
 
-      iphdr->ip_src = iphdr->ip_dst;
-      iphdr->ip_dst = temp;
+            iphdr->ip_src = iphdr->ip_dst;
+            iphdr->ip_dst = temp;
 
 /* update checksum. */
-      iphdr->ip_sum = 0;
-      checksum = cksum(iphdr, sizeof(*iphdr));
-      iphdr->ip_sum = checksum;
-      checksum = cksum(iphdr, sizeof(*iphdr));
-      if (checksum != 0xffff){
-            fprintf(stderr, "bad new check sum\n");
-            return -1;
+            iphdr->ip_sum = 0;
+            checksum = cksum(iphdr, sizeof(*iphdr));
+            iphdr->ip_sum = checksum;
+            checksum = cksum(iphdr, sizeof(*iphdr));
+            if (checksum != 0xffff){
+                  fprintf(stderr, "bad new check sum\n");
+                  return -1;
+            }
+            return 0;
       }
-      return 0;
-}
 
-int make_echo_request(uint8_t ** packet, unsigned int len){
+      int make_echo_request(uint8_t ** packet, unsigned int len){
 
-      uint8_t *newpacket = *packet;
-      int icmp_len = len - (sizeof(sr_ethernet_hdr_t) + sizeof(sr_ip_hdr_t));
-      uint16_t checksum;
-      struct sr_icmp_hdr * icmp_hdr =  (struct sr_icmp_hdr *) (newpacket + sizeof(sr_ethernet_hdr_t) + sizeof(sr_ip_hdr_t));
-      sr_ip_hdr_t *iphdr = (sr_ip_hdr_t *)(newpacket + sizeof(sr_ethernet_hdr_t));
+            uint8_t *newpacket = *packet;
+            int icmp_len = len - (sizeof(sr_ethernet_hdr_t) + sizeof(sr_ip_hdr_t));
+            uint16_t checksum;
+            struct sr_icmp_hdr * icmp_hdr =  (struct sr_icmp_hdr *) (newpacket + sizeof(sr_ethernet_hdr_t) + sizeof(sr_ip_hdr_t));
+            sr_ip_hdr_t *iphdr = (sr_ip_hdr_t *)(newpacket + sizeof(sr_ethernet_hdr_t));
 
 /* update icmp info */
-      icmp_hdr->icmp_type = 0;
-      icmp_hdr->icmp_code = 0;
-      icmp_hdr->icmp_sum = 0;
-      checksum = cksum(icmp_hdr, icmp_len);
-      icmp_hdr->icmp_sum = checksum;
+            icmp_hdr->icmp_type = 0;
+            icmp_hdr->icmp_code = 0;
+            icmp_hdr->icmp_sum = 0;
+            checksum = cksum(icmp_hdr, icmp_len);
+            icmp_hdr->icmp_sum = checksum;
 
 /* update IP info */
 
-      iphdr->ip_tos = 0;
-      iphdr->ip_ttl = 64;
+            iphdr->ip_tos = 0;
+            iphdr->ip_ttl = 64;
 
-      uint32_t temp = iphdr->ip_src;
-      iphdr->ip_src = iphdr->ip_dst;
-      iphdr->ip_dst = temp;
+            uint32_t temp = iphdr->ip_src;
+            iphdr->ip_src = iphdr->ip_dst;
+            iphdr->ip_dst = temp;
 
 /* update checksum. */
-      iphdr->ip_sum = 0;
-      checksum = cksum(iphdr, sizeof(*iphdr));
-      iphdr->ip_sum = checksum;
-      checksum = cksum(iphdr, sizeof(*iphdr));
-      if (checksum != 0xffff){
-            fprintf(stderr, "bad new check sum\n");
-            return -1;
+            iphdr->ip_sum = 0;
+            checksum = cksum(iphdr, sizeof(*iphdr));
+            iphdr->ip_sum = checksum;
+            checksum = cksum(iphdr, sizeof(*iphdr));
+            if (checksum != 0xffff){
+                  fprintf(stderr, "bad new check sum\n");
+                  return -1;
+            }
+            return 0;
       }
-      return 0;
-}
+
+      int send_icmp_message(struct sr_instance * sr, uint8_t * packet, 
+            uint8_t icmp_type,  uint8_t icmp_code) {
+
+            int res, size, icmp_len;
+
+            if (icmp_type == 3){
+                  size = sizeof(sr_ethernet_hdr_t) + sizeof(sr_ip_hdr_t) + sizeof(sr_icmp_hdr_t);
+            } else if (icmp_type == 11) {
+                  size = sizeof(sr_ethernet_hdr_t) + 2 * sizeof(sr_ip_hdr_t) + sizeof(sr_icmp_t3_hdr_t) + 8;
+            } else {
+                  fprintf(stderr, "bad icmp_type\n");
+                  return -1;
+
+            }
+            uint8_t  temp[ETHER_ADDR_LEN]; 
+            uint8_t icmp_message[size];
+            memcpy(icmp_message, packet, size);
+
+            icmp_len = size - ( sizeof(sr_ethernet_hdr_t) + sizeof(sr_ip_hdr_t));
+
+            struct sr_ethernet_hdr * ether_hdr = (struct sr_ethernet_hdr * ) icmp_message; 
+            struct sr_ip_hdr *ip_hdr = (struct sr_ip_hdr *)(icmp_message + sizeof(sr_ethernet_hdr_t));
+            struct sr_ip_hdr *old_ip_hdr = (struct sr_ip_hdr *)(packet + sizeof(sr_ethernet_hdr_t));
+            struct sr_icmp_hdr * icmp_hdr = (struct sr_icmp_hdr *) (icmp_message + sizeof(sr_ethernet_hdr_t) + sizeof(sr_ip_hdr_t));
+
+            /* swap source and host MAC address */
+            memcpy(temp, ether_hdr->ether_dhost, ETHER_ADDR_LEN);
+            memcpy(ether_hdr->ether_dhost, ether_hdr->ether_shost, ETHER_ADDR_LEN);
+            memcpy(ether_hdr->ether_shost, temp, ETHER_ADDR_LEN);
+
+            if (icmp_type == 11) {
+                  memcpy(icmp_hdr->data, old_ip_hdr, ICMP_DATA_SIZE);
+                  icmp_hdr->next_mtu = 1500;
+            }
+
+
+      /* update icmp info */
+            icmp_hdr->icmp_type = icmp_type;
+            icmp_hdr->icmp_code = icmp_code;
+            icmp_hdr->icmp_sum = 0;
+            checksum = cksum(icmp_hdr, icmp_len);
+            icmp_hdr->icmp_sum = checksum;
+
+      /* update IP info */
+            iphdr->ip_tos = 0;
+            iphdr->ip_ttl = 64;
+
+            uint32_t temp = iphdr->ip_src;
+
+            iphdr->ip_src = iphdr->ip_dst;
+            iphdr->ip_dst = temp;
+
+      /* update ip checksum. */
+            iphdr->ip_sum = 0;
+            checksum = cksum(iphdr, sizeof(*iphdr));
+            iphdr->ip_sum = checksum;
+            checksum = cksum(iphdr, sizeof(*iphdr));
+            if (checksum != 0xffff){
+                  fprintf(stderr, "bad new check sum\n");
+                  return -1;
+            }
+
+            struct sr_rt* best_rt = find_best_rt(sr->routing_table,  ntohl(ip_hdr->ip_dst));         
+            if (!best_rt) {
+                  fprintf(stderr, "no rt found, send_icmp_message\n");
+                  return -1;
+            }
+
+            res = sr_send_packet(sr, icmp_message, size, best_rt->interface);
+
+            if (res != 0) {
+                  fprintf(stderr, "bad sr_send_packet IP\n");
+                  return -1;
+            }
+            return 0;
+      }

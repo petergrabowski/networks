@@ -17,6 +17,7 @@ int send_arp_response(struct sr_instance * sr, struct sr_if * assoc_if, uint8_t 
 int handle_arp_reply(struct sr_instance * sr, uint8_t * packet, unsigned int len);
 int handle_arp_packet(struct sr_instance * sr, uint8_t * packet, unsigned int len );
 int sr_handle_arp_req (struct sr_instance * sr, struct sr_arpreq * arpreq);
-
+int send_icmp_message(struct sr_instance * sr, uint8_t * packet, unsigned int len,
+      uint8_t icmp_type,  uint8_t icmp_code);
 
 #endif
