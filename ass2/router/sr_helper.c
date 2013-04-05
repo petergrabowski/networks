@@ -315,7 +315,7 @@ int send_arp_response(struct sr_instance * sr, struct sr_if * assoc_iface, uint8
       new_arp_hdr->ar_op = htons(arp_op_reply);
 
       fprintf(stderr, "about to send arp reply\n");
-      print_hdrs(newpacket, len);
+      /*print_hdrs(newpacket, len); */
       res = sr_send_packet(sr, newpacket, len, assoc_iface->name);
 
       if (res != 0) {
@@ -377,7 +377,7 @@ int handle_arp_packet(struct sr_instance * sr, uint8_t * packet, unsigned int le
       struct sr_arp_hdr *arp_hdr = (struct sr_arp_hdr *)(packet + sizeof(sr_ethernet_hdr_t));
       int arp_op = ntohs(arp_hdr->ar_op);
 
-      print_hdrs(packet, len);
+      /*print_hdrs(packet, len); */
 
 /* check to see if the target IP belongs to one of our routers */
       struct sr_if* assoc_iface = validate_ip(sr->if_list, arp_hdr->ar_tip); 
@@ -403,7 +403,7 @@ int handle_arp_packet(struct sr_instance * sr, uint8_t * packet, unsigned int le
       } else if (arp_op == arp_op_reply) { 
 /* this is an incoming reply */
             fprintf(stderr, "got arp reply\n");
-            print_hdrs(packet, len);
+            /*print_hdrs(packet, len); */
 
             res = handle_arp_reply(sr, packet, len);
             if (res != 0){
