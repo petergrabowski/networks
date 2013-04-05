@@ -105,9 +105,6 @@ struct sr_rt* find_best_rt(struct sr_rt* routing_table, uint32_t ip) {
       while (ip_rt_walker){
       	dest = ntohl(ip_rt_walker->dest.s_addr);
       	mask = ntohl(ip_rt_walker->mask.s_addr);
-        fprintf(stderr, "\n\n\n in find best rt\n");
-        print_addr_ip_int(dest);
-        print_addr_ip_int(ip);
       	if ((dest & mask) == (ip & mask)) {
       		fprintf(stderr, "found matching destination in rt\n");
       		if (mask > maxlen){
