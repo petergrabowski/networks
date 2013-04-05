@@ -264,11 +264,7 @@ struct sr_if* validate_ip(struct sr_if * if_list, uint32_t ip) {
 
 /* check to see if the target IP belongs to one of our routers */
       struct sr_if* if_walker = if_list;
-      fprintf(stderr,"searching for this ip: ");
-      print_addr_ip_int(ip);
       while(if_walker){
-            fprintf(stderr, "found this ip: ");
-            print_addr_ip_int(if_walker->ip);
             if (ntohl(if_walker->ip) ==  ntohl(ip)){
                   return if_walker;
             }
