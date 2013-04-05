@@ -419,7 +419,7 @@ int generate_echo_request(uint8_t ** packet, unsigned int len){
       uint16_t checksum;
       struct sr_icmp_hdr * icmp_hdr =  (struct sr_icmp_hdr *) (newpacket + sizeof(sr_ethernet_hdr_t) + sizeof(sr_ip_hdr_t));
       struct sr_ethernet_hdr* ether_hdr = (struct sr_ethernet_hdr *) newpacket;
-      sr_ip_hdr_t *iphdr = (sr_ip_hdr_t *)(newpacket + sizeof(sr_ethernet_hdr_t));
+      struct sr_ip_hdr *iphdr = (struct sr_ip_hdr *)(newpacket + sizeof(sr_ethernet_hdr_t));
       
       /* update icmp info */
       icmp_hdr-icmp_type = 0;
@@ -430,13 +430,13 @@ int generate_echo_request(uint8_t ** packet, unsigned int len){
 
       /* update IP info */
 
-      iphdr->tos = 0;
+      iphdr->ip_tos = 0;
       iphdr->ip_ttl = 64;
 
       uint32_t temp = iphdr->ip_src;
 
-      iphdr->ip_src = ip_hdr->ip_dst;
-      iph_hdr->ip_dst = temp;
+      iphdr->ip_src = iphdr->ip_dst;
+      iphdr->ip_dst = temp;
 
       /* update checksum. */
       iphdr->ip_sum = 0;
