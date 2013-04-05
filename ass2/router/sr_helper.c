@@ -188,73 +188,74 @@ int handle_ip_packet(struct sr_instance * sr, uint8_t * packet, unsigned int len
                   /* TODO: Port unreachable (type 3, code 3) */
             }
       }
+}
 
-      /* Find out which entry in the routing table has 
-      the longest prefix match with the 
-      destination IP address. */
-      struct sr_rt* best_rt = find_best_rt(sr->routing_table,  ntohl(new_iphdr->ip_dst));         
+/* Find out which entry in the routing table has 
+the longest prefix match with the 
+destination IP address. */
+struct sr_rt* best_rt = find_best_rt(sr->routing_table,  ntohl(new_iphdr->ip_dst));         
 
-      if (!best_rt) {
-            /* didn't find an interface, TODO: send an ICMP message type 3 
-            code 0, also if there are any errors above */
-            ;
-      }
+if (!best_rt) {
+      /* didn't find an interface, TODO: send an ICMP message type 3 
+      code 0, also if there are any errors above */
+      ;
+}
 
-      /* found an interface */
-      fprintf(stderr, "we have an interface to send on: %s\n", best_rt->interface);
+/* found an interface */
+fprintf(stderr, "we have an interface to send on: %s\n", best_rt->interface);
 
-      struct sr_if * best_iface = sr_get_interface(sr, best_rt->interface);
-      if (!best_iface){
-            fprintf(stderr, "bad iface lookup\n");
+struct sr_if * best_iface = sr_get_interface(sr, best_rt->interface);
+if (!best_iface){
+      fprintf(stderr, "bad iface lookup\n");
+      return -1;
+}
+struct sr_arpentry * forward_arp_entry = sr_arpcache_lookup(&(sr->cache), ntohl(best_rt->gw.s_addr));
+struct sr_ethernet_hdr * new_ether_hdr = (struct sr_ethernet_hdr * ) newpacket_for_ip; 
+
+/* ethernet -- update the source address */
+memcpy(new_ether_hdr->ether_shost, best_iface->addr,  ETHER_ADDR_LEN);
+
+if (forward_arp_entry) {
+      /* we have a MAC address */
+      fprintf(stderr, "we have a MAC address: %s\n", forward_arp_entry->mac);
+
+      /* update packet */
+      /* ethernet -- set the dest address */
+      memcpy(new_ether_hdr->ether_dhost, forward_arp_entry->mac, ETHER_ADDR_LEN);
+
+      /* send packet using correct interface */
+      int res = 0; 
+
+      fprintf(stderr, "about to forward ip newpacket\n");
+      res = sr_send_packet(sr, newpacket_for_ip, len, best_rt->interface);
+
+      if (res != 0) {
+
+            fprintf(stderr, "bad sr_send_packet IP\n");
             return -1;
       }
-      struct sr_arpentry * forward_arp_entry = sr_arpcache_lookup(&(sr->cache), ntohl(best_rt->gw.s_addr));
-      struct sr_ethernet_hdr * new_ether_hdr = (struct sr_ethernet_hdr * ) newpacket_for_ip; 
 
-      /* ethernet -- update the source address */
-      memcpy(new_ether_hdr->ether_shost, best_iface->addr,  ETHER_ADDR_LEN);
-
-      if (forward_arp_entry) {
-            /* we have a MAC address */
-            fprintf(stderr, "we have a MAC address: %s\n", forward_arp_entry->mac);
-
-            /* update packet */
-            /* ethernet -- set the dest address */
-            memcpy(new_ether_hdr->ether_dhost, forward_arp_entry->mac, ETHER_ADDR_LEN);
-
-            /* send packet using correct interface */
-            int res = 0; 
-
-            fprintf(stderr, "about to forward ip newpacket\n");
-            res = sr_send_packet(sr, newpacket_for_ip, len, best_rt->interface);
-
-            if (res != 0) {
-
-                  fprintf(stderr, "bad sr_send_packet IP\n");
+      free(forward_arp_entry);
+      return 0;
+} else {
+      /* we dont have a MAC address, add to arp queue */
+      fprintf(stderr, "no mac address =( queueing an arpreq\n");
+            struct sr_arpreq * arpreq;
+            arpreq = sr_arpcache_queuereq(&(sr->cache), best_rt->gw.s_addr, newpacket_for_ip, 
+                  len, best_rt->interface );
+            if (!arpreq){
+                  fprintf(stderr, "bad arpreq \n");
                   return -1;
             }
+            uint32_t ip, dest;
+            fprintf(stderr, "interface ip = ");
+            print_addr_ip_int(ntohl(best_iface->ip));
+            ip = ntohl(best_iface->ip);
 
-            free(forward_arp_entry);
-            return 0;
-      } else {
-            /* we dont have a MAC address, add to arp queue */
-            fprintf(stderr, "no mac address =( queueing an arpreq\n");
-                  struct sr_arpreq * arpreq;
-                  arpreq = sr_arpcache_queuereq(&(sr->cache), best_rt->gw.s_addr, newpacket_for_ip, 
-                        len, best_rt->interface );
-                  if (!arpreq){
-                        fprintf(stderr, "bad arpreq \n");
-                        return -1;
-                  }
-                  uint32_t ip, dest;
-                  fprintf(stderr, "interface ip = ");
-                  print_addr_ip_int(ntohl(best_iface->ip));
-                  ip = ntohl(best_iface->ip);
-
-                  dest = ntohl(best_rt->dest.s_addr);
-                  sr_handle_arp_req(sr, arpreq, best_iface->addr, ETHER_ADDR_LEN, ip, dest, best_rt->interface); 
-            } 
-      }
+            dest = ntohl(best_rt->dest.s_addr);
+            sr_handle_arp_req(sr, arpreq, best_iface->addr, ETHER_ADDR_LEN, ip, dest, best_rt->interface); 
+      } 
+}
 
 
 
