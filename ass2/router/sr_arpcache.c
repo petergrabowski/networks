@@ -17,7 +17,17 @@
   See the comments in the header file for an idea of what it should look like.
 */
 void sr_arpcache_sweepreqs(struct sr_instance *sr) { 
-    /* TODO: Fill this in */
+
+    struct sr_arpreq *req_walker = sr->cache.requests;
+    int res;
+
+    while(req_walker){
+        res = sr_handle_arp_req(req_walker);
+        if (res == -1){
+            fprintf(stderr, "bad handle arp req in sr_arpcache_sweepreqs\n");
+        }
+        req_walker = req_walker->next;
+    }
 }
 
 /* You should not need to touch the rest of this code. */
