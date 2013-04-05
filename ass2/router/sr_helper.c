@@ -154,8 +154,8 @@ int handle_ip_packet(struct sr_instance * sr, uint8_t * packet, unsigned int len
             fprintf(stderr, "bad new check sum\n");
       }
 
-      struct sr_rt* assoc_iface_rt = validate_ip(sr->routing_table, iphdr->ip_src);
-      if (assoc_iface_rt) {
+      struct sr_rt* assoc_iface = validate_ip(sr->iface_list, iphdr->ip_src);
+      if (assoc_iface) {
             /*it's destined to one of our IPs */
             /* ICMP */
             uint8_t ip_proto = ip_protocol(packet + sizeof(sr_ethernet_hdr_t));
@@ -260,30 +260,24 @@ int handle_ip_packet(struct sr_instance * sr, uint8_t * packet, unsigned int len
 
 
 
-struct sr_rt* validate_ip(struct sr_rt * routing_table, uint32_t ip) {
+struct sr_if* validate_ip(struct sr_if * if_list, uint32_t ip) {
 
 /* check to see if the target IP belongs to one of our routers */
-      struct sr_rt* rt_walker = routing_table;
-      while(rt_walker){
-            if (ntohl(rt_walker->dest.s_addr) ==  ntohl(ip)){
-                  return rt_walker;
+      struct sr_if* if_walker = if_list;
+      while(if_walker){
+            if (ntohl(if_walker->ip) ==  ntohl(ip)){
+                  return if_walker;
             }
-            rt_walker = rt_walker->next;
+            if_walker = if_walker->next;
       }     
       return NULL;
 }
 
 
-int send_arp_response(struct sr_instance * sr, struct sr_rt * assoc_iface_rt, uint8_t * packet, unsigned int len) {
+int send_arp_response(struct sr_instance * sr, struct sr_if * assoc_iface, uint8_t * packet, unsigned int len) {
 
       int res; 
 
-/* look up MAC address in interface list by interface name */
-      struct sr_if* assoc_iface = sr_get_interface(sr, assoc_iface_rt->interface);
-      if(!assoc_iface){
-            fprintf(stderr, "couldnt find MAC:\n");
-            return -1;
-      }
 /* we have a MAC address */
       uint8_t newpacket[len];
       memcpy(newpacket, packet, len);
@@ -315,7 +309,7 @@ int send_arp_response(struct sr_instance * sr, struct sr_rt * assoc_iface_rt, ui
 
       fprintf(stderr, "about to send arp reply\n");
       print_hdrs(newpacket, len);
-      res = sr_send_packet(sr, newpacket, len, assoc_iface_rt->interface);
+      res = sr_send_packet(sr, newpacket, len, assoc_iface->name);
 
       if (res != 0) {
             fprintf(stderr, "bad sr_send_packet ARP\n");
@@ -375,10 +369,10 @@ int handle_arp_packet(struct sr_instance * sr, uint8_t * packet, unsigned int le
       print_hdrs(packet, len);
 
 /* check to see if the target IP belongs to one of our routers */
-      struct sr_rt* assoc_iface_rt = validate_ip(sr->routing_table, arp_hdr->ar_sip); 
+      struct sr_if* assoc_iface = validate_ip(sr->if_list, arp_hdr->ar_sip); 
 
 /* if its not one of ours, ignore it */
-      if (!assoc_iface_rt){
+      if (!assoc_iface){
             fprintf(stderr, "doesn't belong to one of our interfaces, returning\n\n");
             return -1;
       }
@@ -387,7 +381,7 @@ int handle_arp_packet(struct sr_instance * sr, uint8_t * packet, unsigned int le
       /* this is an incoming request */
             fprintf(stderr, "got arp req\n");
 
-            res = send_arp_response(sr, assoc_iface_rt,  packet,  len);
+            res = send_arp_response(sr, assoc_iface,  packet,  len);
 
             if (res != 0){
                   fprintf(stderr, "bad send_arp_response\n");
