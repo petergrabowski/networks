@@ -161,8 +161,7 @@ int handle_ip_packet(struct sr_instance * sr, uint8_t * packet, unsigned int len
       if (checksum != 0xffff){
             fprintf(stderr, "bad new check sum\n");
       }
-
-      struct sr_if* assoc_iface = validate_ip(sr->if_list, iphdr->ip_src);
+      struct sr_if* assoc_iface = validate_ip(sr->if_list, iphdr->ip_dst);
       if (assoc_iface) {
             /*it's destined to one of our IPs */
             /* ICMP */
@@ -278,6 +277,8 @@ struct sr_if* validate_ip(struct sr_if * if_list, uint32_t ip) {
 /* check to see if the target IP belongs to one of our routers */
       struct sr_if* if_walker = if_list;
       while(if_walker){
+            print_addr_ip_int(if_walker->ip);
+            print_addr_ip_int(ip);
             if (ntohl(if_walker->ip) ==  ntohl(ip)){
                   return if_walker;
             }
