@@ -448,3 +448,39 @@ int generate_echo_request(uint8_t ** packet, unsigned int len){
       }
       return 0;
 }
+
+int make_echo_request(uint8_t ** packet, unsigned int len){
+
+      uint8_t *newpacket = *packet;
+      int icmp_len = len - (sizeof(sr_ethernet_hdr_t) + sizeof(sr_ip_hdr_t));
+      uint16_t checksum;
+      struct sr_icmp_hdr * icmp_hdr =  (struct sr_icmp_hdr *) (newpacket + sizeof(sr_ethernet_hdr_t) + sizeof(sr_ip_hdr_t));
+      sr_ip_hdr_t *iphdr = (sr_ip_hdr_t *)(newpacket + sizeof(sr_ethernet_hdr_t));
+      
+      /* update icmp info */
+      icmp_hdr-icmp_type = 0;
+      icmp_hdr->icmp_code = 0;
+      icmp_hdr->icmp_sum = 0;
+      checksum = cksum(icmp_hdr, icmp_len);
+      icmp_hdr->icmp_sum = checksum;
+
+      /* update IP info */
+
+      iphdr->tos = 0;
+      iphdr->ip_ttl = 64;
+
+      uint32_t temp = iphdr->ip_src;
+      iphdr->ip_src = ip_hdr->ip_dst;
+      iph_hdr->ip_dst = temp;
+
+      /* update checksum. */
+      iphdr->ip_sum = 0;
+      checksum = cksum(iphdr, sizeof(*iphdr));
+      iphdr->ip_sum = checksum;
+      checksum = cksum(iphdr, sizeof(*iphdr));
+      if (checksum != 0xffff){
+            fprintf(stderr, "bad new check sum\n");
+            return -1;
+      }
+      return 0;
+}
