@@ -22,7 +22,7 @@ void sr_arpcache_sweepreqs(struct sr_instance *sr) {
     int res;
 
     while(req_walker){
-        res = sr_handle_arp_req(req_walker);
+        res = sr_handle_arp_req(sr, req_walker);
         if (res == -1){
             fprintf(stderr, "bad handle arp req in sr_arpcache_sweepreqs\n");
         }
