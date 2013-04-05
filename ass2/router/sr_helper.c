@@ -78,8 +78,8 @@ int sr_handle_arp_req (struct sr_instance * sr, struct sr_arpreq * arpreq) {
       int res = 0; 
 
       fprintf(stderr, "about to send arp req packet\n");
-      print_hdr_eth(arpbuf);
-      print_hdr_arp((uint8_t *) arp_hdr);
+      /* print_hdr_eth(arpbuf);
+      print_hdr_arp((uint8_t *) arp_hdr); */
       res = sr_send_packet(sr, arpbuf, minlength,best_if->name );
 
       if (res != 0) {
@@ -105,6 +105,9 @@ struct sr_rt* find_best_rt(struct sr_rt* routing_table, uint32_t ip) {
       while (ip_rt_walker){
       	dest = ntohl(ip_rt_walker->dest.s_addr);
       	mask = ntohl(ip_rt_walker->mask.s_addr);
+        fprintf(stderr, "in find best rt\n");
+        print_addr_ip_int(ntohl(dest));
+        print_addr_ip_int(ntohl(ip));
       	if ((dest & mask) == (ip & mask)) {
       		fprintf(stderr, "found matching destination in rt\n");
       		if (mask > maxlen){
@@ -213,7 +216,9 @@ int handle_ip_packet(struct sr_instance * sr, uint8_t * packet, unsigned int len
             fprintf(stderr, "bad iface lookup\n");
             return -1;
       }
-      struct sr_arpentry * forward_arp_entry = sr_arpcache_lookup(&(sr->cache), ntohl(best_rt->gw.s_addr));
+      struct sr_arpentry * forward_arp_entry = sr_arpcache_lookup(&(sr->cache), best_rt->gw.s_addr);
+      fprintf(stderr, "just looked up IP : ");
+      print_addr_ip_int(ntohl(best_rt->gw.s_addr));
       struct sr_ethernet_hdr * new_ether_hdr = (struct sr_ethernet_hdr * ) newpacket_for_ip; 
 
       /* ethernet -- update the source address */
@@ -221,7 +226,7 @@ int handle_ip_packet(struct sr_instance * sr, uint8_t * packet, unsigned int len
 
       if (forward_arp_entry) {
             /* we have a MAC address */
-            fprintf(stderr, "we have a MAC address: %s\n", forward_arp_entry->mac);
+            fprintf(stderr, "***** we have a MAC address: %s\n", forward_arp_entry->mac);
 
             /* update packet */
             /* ethernet -- set the dest address */
@@ -231,6 +236,7 @@ int handle_ip_packet(struct sr_instance * sr, uint8_t * packet, unsigned int len
             int res = 0; 
 
             fprintf(stderr, "about to forward ip newpacket\n");
+            print_hdrs(newpacket_for_ip, len);
             res = sr_send_packet(sr, newpacket_for_ip, len, best_rt->interface);
 
             if (res != 0) {
@@ -239,13 +245,12 @@ int handle_ip_packet(struct sr_instance * sr, uint8_t * packet, unsigned int len
             }
 
             free(forward_arp_entry);
-            return 0;
       } else {
             /* we dont have a MAC address, add to arp queue */
             fprintf(stderr, "no mac address =( queueing an arpreq\n");
                   struct sr_arpreq * arpreq;
                   fprintf(stderr, "queueing ip address: ");
-                  print_addr_ip_int(best_rt->gw.s_addr);
+                  print_addr_ip_int(ntohl(best_rt->gw.s_addr));
                   fprintf(stderr, "on %s\n", best_rt->interface);
                   arpreq = sr_arpcache_queuereq(&(sr->cache), best_rt->gw.s_addr, newpacket_for_ip, 
                         len, best_rt->interface );
@@ -261,7 +266,8 @@ int handle_ip_packet(struct sr_instance * sr, uint8_t * packet, unsigned int len
                   dest = ntohl(best_rt->dest.s_addr);
                   sr_handle_arp_req(sr, arpreq); 
             } 
-      }
+	return 0;      
+}
 
 
 
@@ -328,7 +334,7 @@ int send_arp_response(struct sr_instance * sr, struct sr_if * assoc_iface, uint8
 int handle_arp_reply(struct sr_instance * sr, uint8_t * packet, unsigned int len){
 
       struct sr_arp_hdr *arp_hdr = (struct sr_arp_hdr *)(packet + sizeof(sr_ethernet_hdr_t));
-      struct sr_arpentry *arpentry = sr_arpcache_lookup(&(sr->cache), arp_hdr->ar_sip);
+      struct sr_arpentry *arpentry = sr_arpcache_lookup(&(sr->cache),arp_hdr->ar_sip);
 
 /* if entry isn't already in cache */
       if (arpentry) {
@@ -336,11 +342,10 @@ int handle_arp_reply(struct sr_instance * sr, uint8_t * packet, unsigned int len
             return 0;
       }
       struct sr_arpreq *req = sr_arpcache_insert(&(sr->cache), arp_hdr->ar_sha, arp_hdr->ar_sip);
-      fprintf(stderr, "just added");
+      fprintf(stderr, "just added ");
       print_addr_eth(arp_hdr->ar_sha);
       fprintf(stderr, " to ");
-      print_addr_ip_int(arp_hdr->ar_sip);
-      sr_arpcache_dump(&(sr->cache));
+      print_addr_ip_int(ntohl(arp_hdr->ar_sip));
 
 /* if there were requests pending on this IP */
       if(!req){
