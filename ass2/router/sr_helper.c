@@ -55,13 +55,8 @@ int sr_handle_arp_req (struct sr_instance * sr, struct sr_arpreq * arpreq) {
       struct sr_rt* best_rt = find_best_rt(sr->routing_table, ntohl( arpreq->ip));
 
       if (!best_rt) {
-      /* didn't find an interface, send an ICMP message type 3 
+      /* TODO: didn't find an interface, send an ICMP message type 3 
       code 0, also if there are any errors above */
-            res = send_icmp_message(sr, packet_walker->buf, 3,  0);
-            if (res == -1){
-                  fprintf(stderr, "bad icmp, no iface\n");
-                  return -1;
-            }
             fprintf(stderr, "no interface found for this packet\n");
             return 0;
       }
@@ -88,7 +83,7 @@ int sr_handle_arp_req (struct sr_instance * sr, struct sr_arpreq * arpreq) {
       arp_hdr->ar_tip = arpreq->ip;
 
       /* send packet using correct interface */
-      int res = 0; 
+      res = 0; 
 
       fprintf(stderr, "about to send arp req packet\n");
       /* print_hdr_eth(arpbuf);
@@ -112,7 +107,7 @@ struct sr_rt* find_best_rt(struct sr_rt* routing_table, uint32_t ip) {
       destination IP address. */
 
       struct sr_rt* ip_rt_walker = routing_table;
-
+      fprintf(stderr, "*** new findbestrt\n");
       uint32_t dest, mask,  maxlen = 0;
       struct sr_rt* best_rt = NULL;
       while (ip_rt_walker){
@@ -204,8 +199,8 @@ int handle_ip_packet(struct sr_instance * sr, uint8_t * packet, unsigned int len
                   /* end ICMP */
             } else {
                   /* got a udp payload to a rounter interface */
-                  ;
-                  res = send_icmp_message(sr, packet_walker->buf, 3,  3);
+                  int res;
+                  res = send_icmp_message(sr, packet, 3,  3);
                   if (res == -1){
                         fprintf(stderr, "bad icmp send, port unreachable\n");
                         return -1;
@@ -221,16 +216,16 @@ int handle_ip_packet(struct sr_instance * sr, uint8_t * packet, unsigned int len
       if (!best_rt) {
             /* didn't find an interface, send an ICMP message type 3 
             code 0, also if there are any errors above */
-            res = send_icmp_message(sr, packet_walker->buf, 3,  0);
+            int res = send_icmp_message(sr, packet, 3,  0);
             if (res == -1){
                   fprintf(stderr, "bad icmp, no iface\n");
                   return -1;
             }
-            fprintf(stderr, "no rt entry found\n");;
+            fprintf(stderr, "no rt entry found\n");
+            return 0;
       }
 
       /* found an interface */
-      fprintf(stderr, "we have an interface to send on: %s\n", best_rt->interface);
 
       struct sr_if * best_iface = sr_get_interface(sr, best_rt->interface);
       if (!best_iface){
@@ -549,12 +544,14 @@ int handle_ip_packet(struct sr_instance * sr, uint8_t * packet, unsigned int len
             memcpy(ether_hdr->ether_shost, temp, ETHER_ADDR_LEN);
 
             if (icmp_type == 11) {
-                  memcpy(icmp_hdr->data, old_ip_hdr, ICMP_DATA_SIZE);
-                  icmp_hdr->next_mtu = 1500;
+                  struct sr_icmp_t3_hdr * t3_hdr = (struct sr_icmp_t3_hdr *) icmp_hdr;
+                  memcpy(t3_hdr->data, old_ip_hdr, ICMP_DATA_SIZE);
+                  t3_hdr->next_mtu = 1500;
             }
 
 
-      /* update icmp info */
+      /* updte icmp info */
+            uint32_t checksum;
             icmp_hdr->icmp_type = icmp_type;
             icmp_hdr->icmp_code = icmp_code;
             icmp_hdr->icmp_sum = 0;
@@ -562,19 +559,19 @@ int handle_ip_packet(struct sr_instance * sr, uint8_t * packet, unsigned int len
             icmp_hdr->icmp_sum = checksum;
 
       /* update IP info */
-            iphdr->ip_tos = 0;
-            iphdr->ip_ttl = 64;
+            ip_hdr->ip_tos = 0;
+            ip_hdr->ip_ttl = 64;
+	    uint32_t iptemp;
+            iptemp = ip_hdr->ip_src;
 
-            uint32_t temp = iphdr->ip_src;
-
-            iphdr->ip_src = iphdr->ip_dst;
-            iphdr->ip_dst = temp;
+            ip_hdr->ip_src = ip_hdr->ip_dst;
+            ip_hdr->ip_dst = iptemp;
 
       /* update ip checksum. */
-            iphdr->ip_sum = 0;
-            checksum = cksum(iphdr, sizeof(*iphdr));
-            iphdr->ip_sum = checksum;
-            checksum = cksum(iphdr, sizeof(*iphdr));
+            ip_hdr->ip_sum = 0;
+            checksum = cksum(ip_hdr, sizeof(*ip_hdr));
+            ip_hdr->ip_sum = checksum;
+            checksum = cksum(ip_hdr, sizeof(*ip_hdr));
             if (checksum != 0xffff){
                   fprintf(stderr, "bad new check sum\n");
                   return -1;
