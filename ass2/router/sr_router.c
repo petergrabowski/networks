@@ -82,7 +82,6 @@
     assert(interface);
     int res;
  
-    fprintf(stderr, "\n\n*****   got a packet, processing\n");
 
     /* Ethernet */
     int minlength = sizeof(sr_ethernet_hdr_t);
@@ -112,7 +111,6 @@
     } else if (ethtype == ethertype_arp) { 
         /* begin ARP */
 
-        fprintf(stderr, "got a packet, ARP\n");
         minlength += sizeof(sr_arp_hdr_t);
 
         if (len < minlength){

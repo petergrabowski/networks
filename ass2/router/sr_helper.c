@@ -86,8 +86,6 @@ int sr_handle_arp_req (struct sr_instance * sr, struct sr_arpreq * arpreq) {
       res = 0; 
 
       
-      /* print_hdr_eth(arpbuf);
-      print_hdr_arp((uint8_t *) arp_hdr); */
       res = sr_send_packet(sr, arpbuf, minlength,best_if->name );
 
       if (res != 0) {
@@ -114,8 +112,6 @@ struct sr_rt* find_best_rt(struct sr_rt* routing_table, uint32_t ip) {
       	dest = ntohl(ip_rt_walker->dest.s_addr);
       	mask = ntohl(ip_rt_walker->mask.s_addr);
 
-          print_addr_ip_int(ntohl(dest));
-          print_addr_ip_int(ntohl(ip));
           if ((dest & mask) == (ip & mask)) {
 
                 if (mask > maxlen){
@@ -157,8 +153,7 @@ int handle_ip_packet(struct sr_instance * sr, uint8_t * packet, unsigned int len
 
       if (new_iphdr->ip_ttl <= 0) {
           /* check ttl, less than zero */
-            send_icmp_message(sr,packet, 
-                  11,  uint8_t 0);
+            send_icmp_message(sr,packet, 11, 0);
             return -1;
       }
 
@@ -233,7 +228,6 @@ int handle_ip_packet(struct sr_instance * sr, uint8_t * packet, unsigned int len
       }
       struct sr_arpentry * forward_arp_entry = sr_arpcache_lookup(&(sr->cache), best_rt->gw.s_addr);
       
-      print_addr_ip_int(ntohl(best_rt->gw.s_addr));
       struct sr_ethernet_hdr * new_ether_hdr = (struct sr_ethernet_hdr * ) newpacket_for_ip; 
 
       /* ethernet -- update the source address */
@@ -251,7 +245,6 @@ int handle_ip_packet(struct sr_instance * sr, uint8_t * packet, unsigned int len
             int res = 0; 
 
             
-            print_hdrs(newpacket_for_ip, len);
             res = sr_send_packet(sr, newpacket_for_ip, len, best_rt->interface);
 
             if (res != 0) {
@@ -264,9 +257,6 @@ int handle_ip_packet(struct sr_instance * sr, uint8_t * packet, unsigned int len
             /* we dont have a MAC address, add to arp queue */
             
             struct sr_arpreq * arpreq;
-            fprintf(stderr, "queueing ip address: ");
-            print_addr_ip_int(ntohl(best_rt->gw.s_addr));
-            fprintf(stderr, "on %s\n", best_rt->interface);
             arpreq = sr_arpcache_queuereq(&(sr->cache), best_rt->gw.s_addr, newpacket_for_ip, 
                   len, best_rt->interface );
             if (!arpreq){
@@ -275,7 +265,6 @@ int handle_ip_packet(struct sr_instance * sr, uint8_t * packet, unsigned int len
             }
             uint32_t ip, dest;
            
-            print_addr_ip_int(ntohl(best_iface->ip));
             ip = ntohl(best_iface->ip);
 
             dest = ntohl(best_rt->dest.s_addr);
@@ -290,8 +279,6 @@ struct sr_if* validate_ip(struct sr_if * if_list, uint32_t ip) {
       /* check to see if the target IP belongs to one of our routers */
       struct sr_if* if_walker = if_list;
       while(if_walker){
-            print_addr_ip_int(if_walker->ip);
-            print_addr_ip_int(ip);
             if (ntohl(if_walker->ip) ==  ntohl(ip)){
                   return if_walker;
             }
@@ -335,7 +322,6 @@ int send_arp_response(struct sr_instance * sr, struct sr_if * assoc_iface, uint8
       new_arp_hdr->ar_op = htons(arp_op_reply);
 
     
-      /*print_hdrs(newpacket, len); */
       res = sr_send_packet(sr, newpacket, len, assoc_iface->name);
 
       if (res != 0) {
