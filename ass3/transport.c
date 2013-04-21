@@ -35,28 +35,6 @@
         CSTATE_LAST_ACK,    /* last ack */
  };    
 
-
-/* this structure is global to a mysocket descriptor */
- typedef struct
- {
-    bool_t done;                  /* TRUE once connection is closed */
-
-    int connection_state;         /* state of the connection (established, etc.) */
-
-    tcp_seq initial_sequence_num; /* local initial seq num */
-    tcp_seq initial_recd_seq_num; /* recd initial seq num */
-
-    int sent_last_byte_acked;     /* the last byte that was ackd */
-    int sent_last_byte_written;   /* the most recent written byte */
-    int sent_last_byte_sent;      /* the last byte that was sent */
-
-    int recd_last_byte_read;      /* the last byte that was read */
-    int recd_next_byte_expected;  /* the next byte that's expected */
-    int recd_last_byte_recd;      /* the last byte that was recd */
-
- } context_t;
-
-
  static void generate_initial_seq_num(context_t *ctx);
  static void control_loop(mysocket_t sd, context_t *ctx);
 
