@@ -118,4 +118,42 @@ typedef struct tcphdr
 
 extern void transport_init(mysocket_t sd, bool_t is_active);
 
+/* handle everything that happens before a connection is established */
+int open_tcp_conn(mysocket_t sd, context_t * ctx, bool_t is_active);
+
+/* handle a closed connection */
+int handle_cstate_closed(mysocket_t sd, context_t * ctx, bool_t is_active);
+
+/* listen for incoming network traffic */
+int handle_cstate_listen(mysocket_t sd, context_t * ctx);
+
+/* handle a connection after the syn has been rcvd */
+int handle_cstate_syn_rcvd(mysocket_t sd, context_t * ctx);
+
+/* handle a connection after a syn has been sent */
+int handle_cstate_syn_sent(mysocket_t sd, context_t * ctx);
+
+/* handle closing tcp conn */
+int close_tcp_conn(mysocket_t sd, context_t * ctx);
+
+/* handle state fin wait 1 */
+int handle_cstate_fin_wait_1(mysocket_t sd, context_t * ctx);
+
+/* handle state fin wait 2 */
+int handle_cstate_fin_wait_2(mysocket_t sd, context_t * ctx);
+
+/* handle the closing state */
+int handle_cstate_closing(mysocket_t sd, context_t * ctx);
+
+/* handle waiting for a timeout */
+int handle_cstate_time_wait(mysocket_t sd, context_t * ctx);
+
+/* handle close waiting */
+int handle_cstate_close_wait(mysocket_t sd, context_t * ctx);
+
+/* handle waiting for the last ack */
+int handle_cstate_last_ack(mysocket_t sd, context_t * ctx);
+
+
+
 #endif  /* __TRANSPORT_H__ */

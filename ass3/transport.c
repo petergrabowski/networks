@@ -21,37 +21,62 @@
 #include "transport.h"
 
 
-enum { CSTATE_ESTABLISHED };    /* you should have more states */
+ enum { 
+        CSTATE_CLOSED,      /* connection is closed */
+        CSTATE_LISTEN,      /* listening */
+        CSTATE_SYN_RCVD,    /* syn has been received */
+        CSTATE_SYN_SENT,    /* syn has been sent */
+        CSTATE_ESTABLISHED, /* connection has been established, transmitting */
+        CSTATE_FIN_WAIT_1,  /* first fin wait state */
+        CSTATE_FIN_WAIT_2,  /* second fin wait state */
+        CSTATE_CLOSING,     /* currently closing */
+        CSTATE_TIME_WAIT,   /* waiting timeout */ 
+        CSTATE_CLOSE_WAIT,  /* close wait state */
+        CSTATE_LAST_ACK,    /* last ack */
+ };    
 
 
 /* this structure is global to a mysocket descriptor */
-typedef struct
-{
-    bool_t done;    /* TRUE once connection is closed */
+ typedef struct
+ {
+    bool_t done;                  /* TRUE once connection is closed */
 
-    int connection_state;   /* state of the connection (established, etc.) */
-    tcp_seq initial_sequence_num;
+    int connection_state;         /* state of the connection (established, etc.) */
 
-    /* any other connection-wide global variables go here */
-} context_t;
+    tcp_seq initial_sequence_num; /* local initial seq num */
+    tcp_seq initial_recd_seq_num; /* recd initial seq num */
+
+    int sent_last_byte_acked;     /* the last byte that was ackd */
+    int sent_last_byte_written;   /* the most recent written byte */
+    int sent_last_byte_sent;      /* the last byte that was sent */
+
+    int recd_last_byte_read;      /* the last byte that was read */
+    int recd_next_byte_expected;  /* the next byte that's expected */
+    int recd_last_byte_recd;      /* the last byte that was recd */
+
+ } context_t;
 
 
-static void generate_initial_seq_num(context_t *ctx);
-static void control_loop(mysocket_t sd, context_t *ctx);
+ static void generate_initial_seq_num(context_t *ctx);
+ static void control_loop(mysocket_t sd, context_t *ctx);
 
 
 /* initialise the transport layer, and start the main loop, handling
  * any data from the peer or the application.  this function should not
  * return until the connection is closed.
  */
-void transport_init(mysocket_t sd, bool_t is_active)
-{
+ void transport_init(mysocket_t sd, bool_t is_active)
+ {
     context_t *ctx;
-
+    int res;
     ctx = (context_t *) calloc(1, sizeof(context_t));
+
     assert(ctx);
 
     generate_initial_seq_num(ctx);
+    ctx->connection_state = CSTATE_CLOSED;
+
+    res = open_tcp_conn(sd, ctx, is_active);
 
     /* XXX: you should send a SYN packet here if is_active, or wait for one
      * to arrive if !is_active.  after the handshake completes, unblock the
@@ -63,6 +88,7 @@ void transport_init(mysocket_t sd, bool_t is_active)
     ctx->connection_state = CSTATE_ESTABLISHED;
     stcp_unblock_application(sd);
 
+    /* TODO: state can be either established or FIN_WAIT_1 */
     control_loop(sd, ctx);
 
     /* do any cleanup here */
@@ -79,8 +105,8 @@ static void generate_initial_seq_num(context_t *ctx)
     /* please don't change this! */
     ctx->initial_sequence_num = 1;
 #else
-    /* you have to fill this up */
-    /*ctx->initial_sequence_num =;*/
+    /* assign a random initial seq num from 0 - 255 */
+    ctx->initial_sequence_num = rand() % 255;
 #endif
 }
 
@@ -92,8 +118,8 @@ static void generate_initial_seq_num(context_t *ctx)
  *   - the socket to be closed (via myclose())
  *   - a timeout
  */
-static void control_loop(mysocket_t sd, context_t *ctx)
-{
+ static void control_loop(mysocket_t sd, context_t *ctx)
+ {
     assert(ctx);
     assert(!ctx->done);
 
@@ -101,16 +127,31 @@ static void control_loop(mysocket_t sd, context_t *ctx)
     {
         unsigned int event;
 
-        /* see stcp_api.h or stcp_api.c for details of this function */
-        /* XXX: you will need to change some of these arguments! */
-        event = stcp_wait_for_event(sd, 0, NULL);
+        /* TODO: you will need to change some of these arguments! */
+        event = stcp_wait_for_event(sd, ANY_EVENT, NULL);
 
         /* check whether it was the network, app, or a close request */
-        if (event & APP_DATA)
-        {
+        /* TODO: fill in below. check for conj of two states? */
+
+        if (event & TIMEOUT) {
+            /* there was a timeout  */
+
+        } 
+        if (event & APP_DATA) {
             /* the application has requested that data be sent */
             /* see stcp_app_recv() */
-        }
+
+        } 
+        if (event & NETWORK_DATA) {
+            /* there was network data received */
+
+            /* TODO: check for FIN */
+        } 
+        if (event & APP_CLOSE_REQUESTED) {
+            /* the application has requested that the conn be closed */
+
+            close_tcp_conn(sd, ctx);
+        } 
 
         /* etc. */
     }
@@ -130,8 +171,8 @@ static void control_loop(mysocket_t sd, context_t *ctx)
  * Calls to this function are generated by the dprintf amd
  * dperror macros in transport.h
  */
-void our_dprintf(const char *format,...)
-{
+ void our_dprintf(const char *format,...)
+ {
     va_list argptr;
     char buffer[1024];
 
@@ -143,5 +184,376 @@ void our_dprintf(const char *format,...)
     fflush(stdout);
 }
 
+int open_tcp_conn(mysocket_t sd, context_t * ctx, bool_t is_active) {
+
+    /* make sure the state is closed before we try to open it */
+    assert(ctx->connection_state == CSTATE_CLOSED);
+
+    while (ctx->connection_state != CSTATE_ESTABLISHED && 
+            ctx->connection_state != CSTATE_FIN_WAIT_1) {
+        switch(ctx->connection_state) {
+            case CSTATE_CLOSED:
+                /* connection is closed */
+                handle_cstate_closed(sd, ctx, is_active);
+                break;
+            case CSTATE_LISTEN:
+                /* listening */
+                handle_cstate_listen(sd, ctx);
+                break;
+            case CSTATE_SYN_RCVD:
+                /* syn has been received */
+                handle_cstate_syn_rcvd(sd, ctx);
+                break;
+            case CSTATE_SYN_SENT:
+                /* syn has been sent */
+                handle_cstate_syn_sent(sd, ctx);
+                break;
+            default:
+                /* shouldn't happen */
+                perror("bad open tcp conn state");
+                assert(0);
+                break;
+        }
+    }
+    return 0;
+}
+
+int handle_cstate_closed(mysocket_t sd, context_t * ctx, bool_t is_active) {
+
+    int ret = 0;
+
+    /* TODO: if closed from listen state, will it spin forever? */
+
+    if (is_active) {
+        /* TODO: send syn */
+        ctx->connection_state = CSTATE_SYN_SENT;
+    } else {
+        /* TODO: wait for syn to arrive */ 
+        ctx->connection_state = CSTATE_LISTEN;
+    }
+
+    return ret;
+}
+
+int handle_cstate_listen(mysocket_t sd, context_t * ctx) {
+
+    int ret = 0;
+
+    unsigned int event;
+
+    /* TODO: you will need to change some of these arguments! how long to listen for */
+    event = stcp_wait_for_event(sd, ANY_EVENT, NULL);
+
+    /* check whether it was the network, app, or a close request */
+
+    /* TODO: fill in below. check for conj of states? */
+    if (event & TIMEOUT) {
+        /* there was a timeout  */
+
+    } 
+
+    if (event & APP_DATA) {
+        /* the application has requested that data be sent */
+
+        /* TODO: send syn */
+        ctx->connection_state = CSTATE_SYN_SENT;
+
+    } 
+
+    if (event & NETWORK_DATA) {
+        /* there was network data received */
+
+        /*TODO: handle, check to see if theres an appropriate syn */
+
+        ctx->connection_state = CSTATE_SYN_RCVD;
+
+    } 
+
+    if (event & APP_CLOSE_REQUESTED) {
+        /* the application has requested that the conn be closed */
+
+        /* TODO: if closed from listen state, will it spin forever? */
+        ctx->connection_state = CSTATE_CLOSED;
+
+    } 
 
 
+    return ret;
+}
+
+
+int handle_cstate_syn_rcvd(mysocket_t sd, context_t * ctx) {
+
+    int ret = 0;
+
+    unsigned int event;
+
+    /* TODO: you will need to change some of these arguments! how long to listen for */
+    event = stcp_wait_for_event(sd, NETWORK_DATA | APP_CLOSE_REQUESTED | TIMEOUT, NULL);
+
+    /* check whether it was the network, app, or a close request */
+
+    /* TODO: fill in below. check for conj of states? */
+    if (event & TIMEOUT) {
+        /* there was a timeout  */
+
+    } 
+
+    if (event & NETWORK_DATA) {
+        /* there was network data received */
+
+        /*TODO: handle, check to see if theres an appropriate ack */
+
+        ctx->connection_state = CSTATE_ESTABLISHED;
+
+    } 
+
+    if (event & APP_CLOSE_REQUESTED) {
+        /* the application has requested that the conn be closed */
+
+        ctx->connection_state = CSTATE_FIN_WAIT_1;
+        close_tcp_conn(sd, ctx);
+    } 
+    return ret;
+}
+
+int handle_cstate_syn_sent(mysocket_t sd, context_t * ctx) {
+
+    int ret = 0;
+
+    unsigned int event;
+
+    /* TODO: you will need to change some of these arguments! how long to listen for */
+    event = stcp_wait_for_event(sd, NETWORK_DATA | APP_CLOSE_REQUESTED | TIMEOUT, NULL);
+
+    /* check whether it was the network, app, or a close request */
+
+    /* TODO: fill in below. check for conj of states? */
+    if (event & TIMEOUT) {
+        /* there was a timeout  */
+
+    } 
+
+    if (event & NETWORK_DATA) {
+        /* there was network data received */
+
+        /* if syn + ack */
+        /* TODO: send ack */
+        ctx->connection_state = CSTATE_ESTABLISHED;
+
+        /* else if syn */
+        /* TODO: send syn + ack */
+        ctx->connection_state = CSTATE_SYN_RCVD;
+
+    } 
+
+    if (event & APP_CLOSE_REQUESTED) {
+        /* the application has requested that the conn be closed */
+
+        /* TODO: if closed from listen state, will it spin forever? */
+        ctx->connection_state = CSTATE_CLOSED;
+    } 
+    return ret;
+}
+
+
+int close_tcp_conn(mysocket_t sd, context_t * ctx) {
+
+    while(ctx->connection_state != CSTATE_CLOSED) {
+        switch (ctx->connection_state) {
+
+            case CSTATE_FIN_WAIT_1:
+                /* first fin wait state */
+                handle_cstate_fin_wait_1(sd, ctx);
+                break;
+            case CSTATE_FIN_WAIT_2:
+                /* second fin wait state */
+                handle_cstate_fin_wait_2(sd, ctx);
+                break;
+            case CSTATE_CLOSING:
+                /* currently closing */
+                handle_cstate_closing(sd, ctx);
+                break;
+            case CSTATE_TIME_WAIT:
+                /* waiting timeout */ 
+                handle_cstate_time_wait(sd, ctx);
+                break;
+            case CSTATE_CLOSE_WAIT:
+                /* close wait state */
+                handle_cstate_close_wait(sd, ctx);
+                break;
+            case CSTATE_LAST_ACK:
+                /* last ack */
+                handle_cstate_last_ack(sd, ctx);
+                break;
+        }
+    }
+    ctx->done = TRUE;
+
+    return 0;
+}
+
+int handle_cstate_fin_wait_1(mysocket_t sd, context_t * ctx){
+    int ret = 0;
+
+    unsigned int event;
+
+    /* TODO: you will need to change some of these arguments! how long to listen for */
+    event = stcp_wait_for_event(sd, NETWORK_DATA | TIMEOUT, NULL);
+
+    /* check whether it was the network, app, or a close request */
+
+    /* TODO: fill in below. check for conj of states? */
+    if (event & TIMEOUT) {
+        /* there was a timeout  */
+
+    } 
+
+    if (event & NETWORK_DATA) {
+        /* there was network data received */
+
+        /* if ack */
+        ctx->connection_state = CSTATE_FIN_WAIT_2;
+
+        /* else if ack + fin */
+        /* TODO: send ack*/
+        ctx->connection_state = CSTATE_TIME_WAIT;
+
+        /* else if fin */
+        /* TODO: send ack */
+        ctx->connection_state = CSTATE_CLOSING;
+
+    } 
+
+    return ret;    
+}
+
+int handle_cstate_fin_wait_2(mysocket_t sd, context_t * ctx){
+    int ret = 0;
+
+    unsigned int event;
+
+    /* TODO: you will need to change some of these arguments! how long to listen for */
+    event = stcp_wait_for_event(sd, NETWORK_DATA | TIMEOUT, NULL);
+
+    /* check whether it was the network, app, or a close request */
+
+    /* TODO: fill in below. check for conj of states? */
+    if (event & TIMEOUT) {
+        /* there was a timeout  */
+
+    } 
+
+    if (event & NETWORK_DATA) {
+        /* there was network data received */
+
+        /* if fin */
+        /* TODO: send ack */
+        ctx->connection_state = CSTATE_TIME_WAIT;
+
+    } 
+
+    return ret;    
+}
+
+int handle_cstate_closing(mysocket_t sd, context_t * ctx){
+    int ret = 0;
+
+    unsigned int event;
+
+    /* TODO: you will need to change some of these arguments! how long to listen for */
+    event = stcp_wait_for_event(sd, NETWORK_DATA | TIMEOUT, NULL);
+
+    /* check whether it was the network, app, or a close request */
+
+    /* TODO: fill in below. check for conj of states? */
+    if (event & TIMEOUT) {
+        /* there was a timeout  */
+
+    } 
+
+    if (event & NETWORK_DATA) {
+        /* there was network data received */
+
+        /* if ack */
+        ctx->connection_state = CSTATE_TIME_WAIT;
+
+    } 
+
+    return ret;    
+}
+
+int handle_cstate_time_wait(mysocket_t sd, context_t * ctx){
+    int ret = 0;
+
+    unsigned int event;
+
+    /* TODO: set timeout appropriately, two seg lifetimes */
+    event = stcp_wait_for_event(sd, TIMEOUT, NULL);
+
+    /* check whether it was the network, app, or a close request */
+
+    /* TODO: fill in below. check for conj of states? */
+    if (event & TIMEOUT) {
+        /* there was a timeout  */
+
+        ctx->connection_state = CSTATE_CLOSED;
+
+    } 
+    return ret;    
+}
+
+int handle_cstate_close_wait(mysocket_t sd, context_t * ctx){
+    int ret = 0;
+
+    unsigned int event;
+
+    /* TODO: set timeout appropriately, two seg lifetimes */
+    event = stcp_wait_for_event(sd, APP_CLOSE_REQUESTED | TIMEOUT, NULL);
+
+    /* check whether it was the network, app, or a close request */
+
+    /* TODO: fill in below. check for conj of states? */
+    if (event & TIMEOUT) {
+        /* there was a timeout  */
+
+        ctx->connection_state = CSTATE_CLOSED;
+
+    }
+
+    if (event & APP_CLOSE_REQUESTED) {
+        /* there was network data received */
+
+        /* TODO: send fin */
+        ctx->connection_state = CSTATE_LAST_ACK;
+
+    } 
+
+    return ret;    
+}
+
+int handle_cstate_last_ack(mysocket_t sd, context_t * ctx){
+    int ret = 0;
+
+    unsigned int event;
+
+    /* TODO: you will need to change some of these arguments! how long to listen for */
+    event = stcp_wait_for_event(sd, NETWORK_DATA | TIMEOUT, NULL);
+
+    /* check whether it was the network, app, or a close request */
+
+    /* TODO: fill in below. check for conj of states? */
+    if (event & TIMEOUT) {
+        /* there was a timeout  */
+
+    } 
+
+    if (event & NETWORK_DATA) {
+        /* there was network data received */
+
+        /* if ack */
+        ctx->connection_state = CSTATE_CLOSED;
+
+    } 
+    return ret;    
+}
