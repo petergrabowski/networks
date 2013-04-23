@@ -11,7 +11,7 @@
 #include <stdio.h>  /* for perror */
 #include <errno.h>
 #include "mysock.h"
-
+#include "stcp_api.h"
 
 /* For some reason, Linux redefines tcphdr unless one compiles with only
  * _BSD_SOURCE defined--but doing this causes problems with some of the
