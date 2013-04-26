@@ -238,8 +238,8 @@ int handle_cstate_listen(mysocket_t sd, context_t * ctx) {
         /* TODO: do we need to check for data here? */
         size_t recd;
         recd = stcp_network_recv(sd, ctx->recv_wind, MAX_WINDOW_SIZE);
-        if (recd == -1) {
-            perror(bad network recv);
+        if (recd == 0) {
+            perror("bad network recv");
             return -1;
         }
 
@@ -285,8 +285,8 @@ int handle_cstate_syn_rcvd(mysocket_t sd, context_t * ctx) {
         /* TODO: update ack num? */
         size_t recd;
         recd = stcp_network_recv(sd, ctx->recv_wind, MAX_WINDOW_SIZE);
-        if (recd == -1) {
-            perror(bad network recv);
+        if (recd == 0) {
+            perror("bad network recv");
             return -1;
         }
 
@@ -325,8 +325,8 @@ int handle_cstate_syn_sent(mysocket_t sd, context_t * ctx) {
         /* TODO: do we need to check for data here? */
         size_t recd;
         recd = stcp_network_recv(sd, ctx->recv_wind, MAX_WINDOW_SIZE);
-        if (recd == -1) {
-            perror(bad network recv);
+        if (recd == 0) {
+            perror("bad network recv");
             return -1;
         }
 
@@ -563,14 +563,14 @@ int send_syn_ack_fin(mysocket_t sd, context_t * ctx, uint8_t to_send_flags,
         tcp_packet->th_flags |= TH_FIN;
     }
 
-    tcp_packet->th_off = 5 /* no options, data begins 20 bytes into packet */
+    tcp_packet->th_off = 5; /* no options, data begins 20 bytes into packet */
 
     /* TODO: set adv window size */
 
     /* send the newly constructed packet */ 
     ssize_t n;
 
-    n = stcp_network_send(sd, buff , len, 0)
+    n = stcp_network_send(sd, buff , len, 0);
     if (n == -1){
         fprintf(stderr,"error: client bad send\n");
         perror("send");
