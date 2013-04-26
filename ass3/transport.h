@@ -67,6 +67,8 @@ typedef struct tcphdr
 } __attribute__ ((packed)) STCPHeader;
 
 
+#define MAX_WINDOW_SIZE 3072
+
 /* starting byte position of data in TCP packet p */
 #define TCP_DATA_START(p) (((STCPHeader *) p)->th_off * sizeof(uint32_t))
 
@@ -116,6 +118,9 @@ typedef struct tcphdr
     #endif
 #endif
 
+#define SEND_FIN  0x01 /* send a FIN */
+#define SEND_SYN  0x02 /* send an SYN */
+#define SEND_ACK  0x04 /* send a ACK */
 
 /* this structure is global to a mysocket descriptor */
  typedef struct
@@ -134,6 +139,9 @@ typedef struct tcphdr
     int recd_last_byte_read;      /* the last byte that was read */
     int recd_next_byte_expected;  /* the next byte that's expected */
     int recd_last_byte_recd;      /* the last byte that was recd */
+
+    uint8_t * send_wind;
+    uint8_t * recv_wind;
 
  } context_t;
 
@@ -175,6 +183,7 @@ int handle_cstate_close_wait(mysocket_t sd, context_t * ctx);
 /* handle waiting for the last ack */
 int handle_cstate_last_ack(mysocket_t sd, context_t * ctx);
 
-
+int send_syn_ack_fin(mysocket_t sd, context_t * ctx, uint8_t to_send_flags, 
+            tcp_seq seq_num, tcp_seq ack_num);
 
 #endif  /* __TRANSPORT_H__ */
