@@ -45,6 +45,7 @@
  */
  void transport_init(mysocket_t sd, bool_t is_active)
  {
+    our_dprintf("in transport init\n");
     context_t *ctx;
     int res;
     ctx = (context_t *) calloc(1, sizeof(context_t));
@@ -59,7 +60,7 @@
 
     ctx->recv_wind = (uint8_t *) malloc(MAX_WINDOW_SIZE);
     memset(ctx->recv_wind, 0, MAX_WINDOW_SIZE);
-
+    our_dprintf("has windows aloc'd and seq num. about to open\n");
     res = open_tcp_conn(sd, ctx, is_active);
 
     /* XXX: you should send a SYN packet here if is_active, or wait for one
@@ -215,7 +216,7 @@ int open_tcp_conn(mysocket_t sd, context_t * ctx, bool_t is_active) {
 int handle_cstate_closed(mysocket_t sd, context_t * ctx, bool_t is_active) {
 
     int ret = 0;
-
+    perror("in cstate closed");
     /* TODO: if closed from listen state, will it spin forever? */
 
     if (is_active) {
@@ -228,7 +229,7 @@ int handle_cstate_closed(mysocket_t sd, context_t * ctx, bool_t is_active) {
 }
 
 int handle_cstate_listen(mysocket_t sd, context_t * ctx) {
-
+    perror("in cstate listen");
     int ret = 0;
     unsigned int event;
 
@@ -282,7 +283,7 @@ int handle_cstate_listen(mysocket_t sd, context_t * ctx) {
 int handle_cstate_syn_rcvd(mysocket_t sd, context_t * ctx) {
 
     int ret = 0;
-
+    perror("in cstate syn rcvd");
     unsigned int event;
 
     /* TODO: you will need to change some of these arguments! how long to listen for */
@@ -310,6 +311,7 @@ int handle_cstate_syn_rcvd(mysocket_t sd, context_t * ctx) {
 
             ctx->recd_adv_window = tcp_packet->th_win;
             ctx->connection_state = CSTATE_ESTABLISHED;
+            perror("IN ESTABLISHED\n");
         }
     } 
 
@@ -352,6 +354,7 @@ int handle_cstate_syn_sent(mysocket_t sd, context_t * ctx) {
                 ctx->initial_recd_seq_num + 1);
             ctx->recd_adv_window = tcp_packet->th_win;
             ctx->connection_state = CSTATE_ESTABLISHED;
+            perror("IN ESTABLISHED\n");
 
         /* else if syn */
         } else if (tcp_packet->th_flags & TH_SYN){
@@ -418,7 +421,7 @@ int close_tcp_conn(mysocket_t sd, context_t * ctx) {
 
 int handle_cstate_fin_wait_1(mysocket_t sd, context_t * ctx){
     int ret = 0;
-
+    perror("in cstate fin wait 1");
     unsigned int event;
 
     /* TODO: you will need to change some of these arguments! how long to listen for */
@@ -447,7 +450,7 @@ int handle_cstate_fin_wait_1(mysocket_t sd, context_t * ctx){
 
 int handle_cstate_fin_wait_2(mysocket_t sd, context_t * ctx){
     int ret = 0;
-
+    perror("in cstate fin wait 2");
     unsigned int event;
 
     /* TODO: you will need to change some of these arguments! how long to listen for */
@@ -470,7 +473,7 @@ int handle_cstate_fin_wait_2(mysocket_t sd, context_t * ctx){
 
 int handle_cstate_closing(mysocket_t sd, context_t * ctx){
     int ret = 0;
-
+    perror("in cstate closing ");
     unsigned int event;
 
     /* TODO: you will need to change some of these arguments! how long to listen for */
@@ -491,7 +494,7 @@ int handle_cstate_closing(mysocket_t sd, context_t * ctx){
 
 int handle_cstate_time_wait(mysocket_t sd, context_t * ctx){
     int ret = 0;
-
+    perror("in cstate time wait");
     // unsigned int event;
 
     /* TODO: set timeout appropriately, two seg lifetimes */
@@ -513,7 +516,7 @@ int handle_cstate_time_wait(mysocket_t sd, context_t * ctx){
 
 int handle_cstate_close_wait(mysocket_t sd, context_t * ctx){
     int ret = 0;
-
+    perror("in cstate close wait");
     unsigned int event;
 
     /* TODO: set timeout appropriately, two seg lifetimes */
@@ -612,7 +615,7 @@ uint16_t calc_eff_window(context_t * ctx) {
 }
 
 int handle_cstate_est_recv(mysocket_t sd, context_t * ctx){
-    
+    perror("in cstate est rect "); 
     /* TODO: check incoming syn/ack/fin packets */
     size_t len =  sizeof(struct tcphdr) + ctx->sent_adv_window;
     uint8_t buff[len];
@@ -693,7 +696,7 @@ int handle_cstate_est_recv(mysocket_t sd, context_t * ctx){
 
 
 int handle_cstate_est_send(mysocket_t sd, context_t * ctx){
-
+    perror("in cstate est send");
     size_t max_to_send = calc_eff_window(ctx);
     if (max_to_send == 0) {
         return 0;
