@@ -247,7 +247,7 @@ int handle_cstate_listen(mysocket_t sd, context_t * ctx) {
 
         if (tcp_packet->th_flags & TH_SYN){
             /* syn received */
-            ctx->initial_recd_seq_num = tcphdr->th_seq + 1; /*TODO: is +1 correct */
+            ctx->initial_recd_seq_num = tcp_packet->th_seq + 1; /*TODO: is +1 correct */
             send_syn_ack_fin(sd, ctx, SEND_SYN | SEND_ACK, 
                 ctx->initial_sequence_num, ctx->initial_recd_seq_num);
 
@@ -294,7 +294,7 @@ int handle_cstate_syn_rcvd(mysocket_t sd, context_t * ctx) {
 
         if (tcp_packet->th_flags & TH_ACK){
             /* ack received */
-
+            perror("IN ESTABLISHED\n");
             ctx->connection_state = CSTATE_ESTABLISHED;
         }
     } 
@@ -336,12 +336,13 @@ int handle_cstate_syn_sent(mysocket_t sd, context_t * ctx) {
         if (tcp_packet->th_flags & (TH_SYN | TH_ACK)) {
             send_syn_ack_fin(sd, ctx, SEND_ACK, 0, 
                 ctx->initial_recd_seq_num + 1);
+            perror("IN ESTABLISHED\n");
             ctx->connection_state = CSTATE_ESTABLISHED;
 
         /* else if syn */
         } else if (tcp_packet->th_flags & TH_SYN){
             /* syn received */
-            ctx->initial_recd_seq_num = tcphdr->th_seq + 1; /*TODO: is +1 correct */
+            ctx->initial_recd_seq_num = tcp_packet->th_seq + 1; /*TODO: is +1 correct */
 
             send_syn_ack_fin(sd, ctx, SEND_SYN | SEND_ACK, 
                 ctx->initial_sequence_num, ctx->initial_recd_seq_num + 1);
