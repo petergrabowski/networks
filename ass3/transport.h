@@ -189,4 +189,16 @@ int handle_cstate_last_ack(mysocket_t sd, context_t * ctx);
 int send_syn_ack_fin(mysocket_t sd, context_t * ctx, uint8_t to_send_flags, 
             tcp_seq seq_num, tcp_seq ack_num);
 
+/* send data once a conn is established */
+int handle_cstate_est_send(mysocket_t sd, context_t * ctx);
+
+/* receive data once a conn is established */
+int handle_cstate_est_recv(mysocket_t sd, context_t * ctx);
+
+/* calc the size of the window to advertise */
+uint16_t calc_adv_wind(context_t * ctx);
+
+/* calc how much data is appropriate to send */
+uint16_t calc_eff_window(context_t * ctx);
+
 #endif  /* __TRANSPORT_H__ */

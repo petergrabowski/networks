@@ -75,7 +75,7 @@
     /* TODO: state can be either established or FIN_WAIT_1 */
     if (ctx->connection_state == CSTATE_ESTABLISHED){
         control_loop(sd, ctx);
-    } else if (ctx->connection_state == FIN_WAIT_1){
+    } else if (ctx->connection_state == CSTATE_FIN_WAIT_1){
         close_tcp_conn(sd, ctx);
     } else if (ctx->connection_state == CSTATE_CLOSED) {
         ;
@@ -492,20 +492,22 @@ int handle_cstate_closing(mysocket_t sd, context_t * ctx){
 int handle_cstate_time_wait(mysocket_t sd, context_t * ctx){
     int ret = 0;
 
-    unsigned int event;
+    // unsigned int event;
 
     /* TODO: set timeout appropriately, two seg lifetimes */
-    event = stcp_wait_for_event(sd, TIMEOUT, NULL);
+    // event = stcp_wait_for_event(sd, TIMEOUT, NULL);
 
     /* check whether it was the network, app, or a close request */
 
     /* TODO: fill in below. check for conj of states? */
-    if (event & TIMEOUT) {
-        /* there was a timeout  */
+    // if (event & TIMEOUT) {
+    //      there was a timeout  
 
-        ctx->connection_state = CSTATE_CLOSED;
+    //     ctx->connection_state = CSTATE_CLOSED;
 
-    } 
+    // } 
+
+    ctx->connection_state = CSTATE_CLOSED;
     return ret;    
 }
 
@@ -609,7 +611,7 @@ uint16_t calc_eff_window(context_t * ctx) {
     return ctx->recd_adv_window - (ctx->sent_last_byte_sent - ctx->sent_last_byte_acked);
 }
 
-int handle_cstate_est_recv(sd, ctx){
+int handle_cstate_est_recv(mysocket_t sd, context_t * ctx){
     
     /* TODO: check incoming syn/ack/fin packets */
     size_t len =  sizeof(struct tcphdr) + ctx->sent_adv_window;
@@ -690,7 +692,7 @@ int handle_cstate_est_recv(sd, ctx){
 
 
 
-int handle_cstate_est_send(sd, ctx){
+int handle_cstate_est_send(mysocket_t sd, context_t * ctx){
 
     size_t max_to_send = calc_eff_window(ctx);
     if (max_to_send == 0) {
