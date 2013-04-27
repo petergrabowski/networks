@@ -620,7 +620,7 @@ int handle_cstate_est_recv(mysocket_t sd, context_t * ctx){
     size_t delta, recv_len, recv_packet_len;
 
     recv_len = stcp_network_recv(sd, buff, len);
-    recv_packet_len = recv_packet - sizeof(struct tcphdr)
+    recv_packet_len = recv_len - sizeof(struct tcphdr);
     struct tcphdr * tcp_packet  = (struct tcphdr *) buff;
 
     /* check if any data was ack'd */
@@ -652,24 +652,24 @@ int handle_cstate_est_recv(mysocket_t sd, context_t * ctx){
         data_index = 0;
     }
     uint8_t * data = tcp_packet + sizeof(struct tcphdr);
-    uint32_t buff_index = (ctx->recd_last_byte_recd - ctx->initial_recd_seq_num) % MAX_WINDOW_SIZE;    
+    uint32_t wind_index = (ctx->recd_last_byte_recd - ctx->initial_recd_seq_num) % MAX_WINDOW_SIZE;    
 
-    if (buff_index + data_len > MAX_WINDOW_SIZE){
+    if (wind_index + data_len > MAX_WINDOW_SIZE){
         /* we're wrapping the buffer */
-        delta = MAX_WINDOW_SIZE - buff_index;
+        delta = MAX_WINDOW_SIZE - wind_index;
 
         /*copy data to ctx->buffer and send it to app */ 
-        memcpy((ctx->recv_wind + buff_index, buff + data_index, delta); /* TODO: buff_index + 1 ?*/
-        stcp_app_send( sd, ctx->recv_wind + buff_index, delta);
+        memcpy(ctx->recv_wind + wind_index, data + data_index, delta); /* TODO: wind_index + 1 ?*/
+        stcp_app_send( sd, ctx->recv_wind + wind_index, delta);
 
-        memcpy(ctx->recv_wind, buff + delta + data_index, data_len - delta);
+        memcpy(ctx->recv_wind, data + delta + data_index, data_len - delta);
         stcp_app_send( sd, ctx->recv_wind, data_len - delta);
         
     } else {
         /* we're not wrapping the buffer */
 
         /*copy data to ctx->buffer and send it to app */ 
-        memcpy(ctx->recv_wind + buff_index, buff + data_index, data_len);
+        memcpy(ctx->recv_wind + wind_index, data + data_index, data_len);
         stcp_app_send( sd, ctx->recv_wind, data_len);
     }
 
@@ -698,55 +698,54 @@ int handle_cstate_est_send(mysocket_t sd, context_t * ctx){
     if (max_to_send == 0) {
         return 0;
     }
-    size_t recd_app;
-    uint8_t buff[len];
-
-    uint32_t header_size = sizeof(struct tcphdr);
 
     /* receive data from app */
+    size_t recd_app;
+    uint8_t buff[max_to_send];
     recd_app = stcp_app_recv(sd, buff, max_to_send);
 
 
     /* construct header */
+    uint32_t header_size = sizeof(struct tcphdr);
     uint8_t header_buf[header_size];
     memset(header_buf, 0, header_size);
 
     struct tcphdr * tcp_header = ( struct tcphdr *) header_buf;
 
-    tcp_packet->th_seq = ctx->sent_last_byte_sent + 1;
-    tcp_packet->th_flags |= TH_SYN;
+    tcp_header->th_seq = ctx->sent_last_byte_sent + 1;
+    tcp_header->th_flags |= TH_SYN;
     
 
-    tcp_packet->th_ack = ctx->recd_last_byte_recd;
-    tcp_packet->th_flags |= TH_ACK;
+    tcp_header->th_ack = ctx->recd_last_byte_recd;
+    tcp_header->th_flags |= TH_ACK;
 
-    tcp_packet->th_off = 5; /* no options, data begins 20 bytes into packet */
+    tcp_header->th_off = 5; /* no options, data begins 20 bytes into packet */
 
     /* set adv window size */
-    tcp_packet->th_win = calc_adv_wind(ctx);
-    ctx->sent_adv_window = tcp_packet->th_win;
+    tcp_header->th_win = calc_adv_wind(ctx);
+    ctx->sent_adv_window = tcp_header->th_win;
 
 
     /* copy the data into the tcp buffer */
 
-    uint32_t buff_index = ((ctx->sent_last_byte_written + 1) 
+    uint32_t wind_index = ((ctx->sent_last_byte_written + 1) 
                 - ctx->initial_sequence_num) % MAX_WINDOW_SIZE;
 
     /* we're wrapping the buffer */
-    if (buff_index + recd_app > MAX_WINDOW_SIZE) {
-        size_t delta = MAX_WINDOW_SIZE - buff_index;
+    if (wind_index + recd_app > MAX_WINDOW_SIZE) {
+        size_t delta = MAX_WINDOW_SIZE - wind_index;
 
         /* fill the end of the buffer */
-        memcpy(ctx->send_wind + buff_index, buff, delta);
+        memcpy(ctx->send_wind + wind_index, buff, delta);
         /* restart at the beginning of the buffer */
         memcpy(ctx->send_wind, buff+delta, recd_app - delta);
 
-        stcp_network_send(sd, header_buf, header_size, ctx->send_wind + buff_index, delta, 
+        stcp_network_send(sd, header_buf, header_size, ctx->send_wind + wind_index, delta, 
             ctx->send_wind, recd_app - delta, NULL);
     } else {
         /* don't need to wrap the buffer */
-        memcpy(ctx->send_wind + buff_index, buff, recd_app);
-        stcp_network_send(sd, header_buf, header_size, ctx->send_wind + buff_index, recd_app, NULL);
+        memcpy(ctx->send_wind + wind_index, buff, recd_app);
+        stcp_network_send(sd, header_buf, header_size, ctx->send_wind + wind_index, recd_app, NULL);
         ctx->sent_last_byte_sent += data_len;
     }
 
