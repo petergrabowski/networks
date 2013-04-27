@@ -588,6 +588,8 @@ int send_syn_ack_fin(mysocket_t sd, context_t * ctx, uint8_t to_send_flags,
     if (to_send_flags & SEND_SYN) {
         tcp_packet->th_seq = seq_num;
         tcp_packet->th_flags |= TH_SYN;
+        ctx->sent_last_byte_written = seq_num;
+        ctx->sent_last_byte_sent = seq_num;
         our_dprintf("sending syn: %u\n", seq_num);
     } else {
 	our_dprintf("acked %u written %u sent %u\n", ctx->sent_last_byte_acked, ctx->sent_last_byte_written, ctx->sent_last_byte_sent);
