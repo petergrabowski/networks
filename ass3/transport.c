@@ -16,10 +16,10 @@
 #include <stdlib.h>
 #include <assert.h>
 #include <arpa/inet.h>
+#include <time.h>
 #include "mysock.h"
 #include "stcp_api.h"
 #include "transport.h"
-
 
  enum { 
         CSTATE_CLOSED,      /* connection is closed */
@@ -100,7 +100,7 @@ static void generate_initial_seq_num(context_t *ctx)
     ctx->initial_sequence_num = 1;
 #else
     /* assign a random initial seq num from 0 - 255 */
-    our_dprintf("test random %u\n", rand());
+    srand(time(NULL));
     ctx->initial_sequence_num = rand() % 255;
 #endif
     our_dprintf("generated init seq %u\n", ctx->initial_sequence_num);
@@ -263,12 +263,12 @@ int handle_cstate_listen(mysocket_t sd, context_t * ctx) {
         if (tcp_packet->th_flags & TH_SYN){
             /* syn received */
             ctx->initial_recd_seq_num = tcp_packet->th_seq; /*TODO: is +1 correct */
-            our_dprintf("init recv seq : %u\n" ,ctx->initial_recd_seq_num);
-            ctx->recd_last_byte_recd = ctx->initial_recd_seq_num;
-            ctx->recd_next_byte_expected = ctx->initial_recd_seq_num;// + 1;
+            our_dprintf("init recv seq : %u, amount recd %u\n" ,ctx->initial_recd_seq_num, recd);
+            ctx->recd_last_byte_recd = ctx->initial_recd_seq_num + recd;
+            ctx->recd_next_byte_expected = ctx->recd_last_byte_recd + 1;
             ctx->recd_adv_window = tcp_packet->th_win;
             send_syn_ack_fin(sd, ctx, SEND_SYN | SEND_ACK, 
-                ctx->initial_sequence_num, ctx->initial_recd_seq_num);// + 1);
+                ctx->initial_sequence_num, ctx->recd_next_byte_expected);
             ctx->connection_state = CSTATE_SYN_RCVD;
         }
 
@@ -346,7 +346,7 @@ int handle_cstate_syn_sent(mysocket_t sd, context_t * ctx) {
         our_dprintf("got network data \n");
         /* TODO: check endianness */
         /* TODO: do we need to check for data here? */
-        size_t recd;
+        size_t recd, recd_app;
         recd = stcp_network_recv(sd, ctx->recv_wind, MAX_WINDOW_SIZE);
         if (recd == 0) {
             our_dprintf("bad network recv\n");
@@ -354,34 +354,35 @@ int handle_cstate_syn_sent(mysocket_t sd, context_t * ctx) {
         }
 
         struct tcphdr * tcp_packet  = (struct tcphdr *) ctx->recv_wind;
-
+        recd_app = recd - 4 * tcp_packet->th_off;
         /* if syn + ack */
         if (tcp_packet->th_flags & (TH_SYN | TH_ACK)) {
-            our_dprintf("got syn/ack. syn %u, ack %u\n", tcp_packet->th_seq, tcp_packet->th_ack);
+            our_dprintf("got syn/ack. syn %u, ack %u, recd %u\n", tcp_packet->th_seq, tcp_packet->th_ack, recd);
             ctx->recd_adv_window = tcp_packet->th_win;
             ctx->initial_recd_seq_num = tcp_packet->th_seq;
             ctx->sent_last_byte_acked = tcp_packet->th_ack;
-            ctx->recd_last_byte_recd = tcp_packet->th_seq;
-            ctx->recd_next_byte_expected = tcp_packet->th_seq;// + 1;
+            ctx->recd_last_byte_recd = tcp_packet->th_seq + recd_app;
+            ctx->recd_next_byte_expected = ctx->recd_last_byte_recd + 1;
             ctx->connection_state = CSTATE_ESTABLISHED;
             send_syn_ack_fin(sd, ctx, SEND_ACK, 0, 
-                ctx->initial_recd_seq_num);// + 1);
+                ctx->recd_next_byte_expected);// + 1);
             our_dprintf("IN ESTABLISHED\n");
 
         /* else if syn */
         } else if (tcp_packet->th_flags & TH_SYN){
             /* syn received */
+            our_dprintf("got syn. syn %u, recd %u\n", tcp_packet->th_seq, tcp_packet->th_ack, recd);
             ctx->initial_recd_seq_num = tcp_packet->th_seq; /*TODO: is +1 correct */
-            ctx->recd_last_byte_recd = tcp_packet->th_seq;
-            ctx->recd_next_byte_expected = tcp_packet->th_seq;// + 1;
+            ctx->recd_last_byte_recd = tcp_packet->th_seq + recd_app;
+            ctx->recd_next_byte_expected = ctx->recd_last_byte_recd + 1;
             send_syn_ack_fin(sd, ctx, SEND_SYN | SEND_ACK, 
-                ctx->initial_sequence_num, ctx->initial_recd_seq_num);// + 1);
+                ctx->initial_sequence_num, ctx->recd_next_byte_expected);
             ctx->recd_adv_window = tcp_packet->th_win;
             ctx->connection_state = CSTATE_SYN_RCVD;
         }
 
     } 
-    our_dprintf("init seq : %u\n", ctx->initial_recd_seq_num);
+    our_dprintf("init recd seq : %u\n", ctx->initial_recd_seq_num);
     if (event & APP_CLOSE_REQUESTED) {
         /* the application has requested that the conn be closed */
         our_dprintf("got close req\n"); 
@@ -592,14 +593,15 @@ int send_syn_ack_fin(mysocket_t sd, context_t * ctx, uint8_t to_send_flags,
         ctx->sent_last_byte_sent = seq_num;
         our_dprintf("sending syn: %u\n", seq_num);
     } else {
-	our_dprintf("acked %u written %u sent %u\n", ctx->sent_last_byte_acked, ctx->sent_last_byte_written, ctx->sent_last_byte_sent);
-        tcp_packet->th_seq = ctx->sent_last_byte_sent;
+        our_dprintf("acked %u written %u sent %u\n", ctx->sent_last_byte_acked, ctx->sent_last_byte_written, ctx->sent_last_byte_sent);
+            tcp_packet->th_seq = ctx->sent_last_byte_sent;
     }
 
     if (to_send_flags & SEND_ACK) {
         tcp_packet->th_ack = ack_num;
         tcp_packet->th_flags |= TH_ACK;
-	our_dprintf("sending ack: %u\n", ack_num);
+        //ctx->sent_last_byte_acked = ack_num
+        our_dprintf("sending ack: %u\n", ack_num);
     }
 
     if (to_send_flags & SEND_FIN) {
@@ -642,8 +644,8 @@ int handle_cstate_est_recv(mysocket_t sd, context_t * ctx){
     size_t delta, recv_len, recv_packet_len;
 
     recv_len = stcp_network_recv(sd, buff, len);
-    recv_packet_len = recv_len - sizeof(struct tcphdr);
     struct tcphdr * tcp_packet  = (struct tcphdr *) buff;
+    recv_packet_len = recv_len - 4 * tcp_packet->th_off;
 
     /* check if any data was ack'd */
     if (tcp_packet->th_flags & TH_ACK) {
@@ -734,7 +736,7 @@ int handle_cstate_est_send(mysocket_t sd, context_t * ctx){
 
     struct tcphdr * tcp_header = ( struct tcphdr *) header_buf;
 
-    tcp_header->th_seq = ctx->sent_last_byte_sent;// + 1;
+    tcp_header->th_seq = ctx->sent_last_byte_sent + 1;
     tcp_header->th_flags |= TH_SYN;
     
 
