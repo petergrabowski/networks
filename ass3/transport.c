@@ -259,12 +259,12 @@ int handle_cstate_listen(mysocket_t sd, context_t * ctx) {
         }
 
         struct tcphdr * tcp_packet  = (struct tcphdr *) ctx->recv_wind;
-
+        size_t recd_app = recd - 4 * tcp_packet->th_off;
         if (tcp_packet->th_flags & TH_SYN){
             /* syn received */
             ctx->initial_recd_seq_num = tcp_packet->th_seq; /*TODO: is +1 correct */
-            our_dprintf("init recv seq : %u, amount recd %u\n" ,ctx->initial_recd_seq_num, recd);
-            ctx->recd_last_byte_recd = ctx->initial_recd_seq_num + recd;
+            our_dprintf("init recv seq : %u, amount recd %u\n" ,ctx->initial_recd_seq_num, recd_app);
+            ctx->recd_last_byte_recd = ctx->initial_recd_seq_num + recd_app;
             ctx->recd_next_byte_expected = ctx->recd_last_byte_recd + 1;
             ctx->recd_adv_window = tcp_packet->th_win;
             send_syn_ack_fin(sd, ctx, SEND_SYN | SEND_ACK, 
@@ -357,7 +357,7 @@ int handle_cstate_syn_sent(mysocket_t sd, context_t * ctx) {
         recd_app = recd - 4 * tcp_packet->th_off;
         /* if syn + ack */
         if (tcp_packet->th_flags & (TH_SYN | TH_ACK)) {
-            our_dprintf("got syn/ack. syn %u, ack %u, recd %u\n", tcp_packet->th_seq, tcp_packet->th_ack, recd);
+            our_dprintf("got syn/ack. syn %u, ack %u, recd %u\n", tcp_packet->th_seq, tcp_packet->th_ack, recd_app);
             ctx->recd_adv_window = tcp_packet->th_win;
             ctx->initial_recd_seq_num = tcp_packet->th_seq;
             ctx->sent_last_byte_acked = tcp_packet->th_ack;
