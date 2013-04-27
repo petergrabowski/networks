@@ -265,10 +265,10 @@ int handle_cstate_listen(mysocket_t sd, context_t * ctx) {
             ctx->initial_recd_seq_num = tcp_packet->th_seq; /*TODO: is +1 correct */
             our_dprintf("init recv seq : %u\n" ,ctx->initial_recd_seq_num);
             ctx->recd_last_byte_recd = ctx->initial_recd_seq_num;
-            ctx->recd_next_byte_expected = ctx->initial_recd_seq_num + 1;
+            ctx->recd_next_byte_expected = ctx->initial_recd_seq_num;// + 1;
             ctx->recd_adv_window = tcp_packet->th_win;
             send_syn_ack_fin(sd, ctx, SEND_SYN | SEND_ACK, 
-                ctx->initial_sequence_num, ctx->initial_recd_seq_num + 1);
+                ctx->initial_sequence_num, ctx->initial_recd_seq_num;// + 1);
             ctx->connection_state = CSTATE_SYN_RCVD;
         }
 
@@ -362,10 +362,10 @@ int handle_cstate_syn_sent(mysocket_t sd, context_t * ctx) {
             ctx->initial_recd_seq_num = tcp_packet->th_seq;
             ctx->sent_last_byte_acked = tcp_packet->th_ack;
             ctx->recd_last_byte_recd = tcp_packet->th_seq;
-            ctx->recd_next_byte_expected = tcp_packet->th_seq + 1;
+            ctx->recd_next_byte_expected = tcp_packet->th_seq;// + 1;
             ctx->connection_state = CSTATE_ESTABLISHED;
             send_syn_ack_fin(sd, ctx, SEND_ACK, 0, 
-                ctx->initial_recd_seq_num + 1);
+                ctx->initial_recd_seq_num;// + 1);
             our_dprintf("IN ESTABLISHED\n");
 
         /* else if syn */
@@ -373,9 +373,9 @@ int handle_cstate_syn_sent(mysocket_t sd, context_t * ctx) {
             /* syn received */
             ctx->initial_recd_seq_num = tcp_packet->th_seq; /*TODO: is +1 correct */
             ctx->recd_last_byte_recd = tcp_packet->th_seq;
-            ctx->recd_next_byte_expected = tcp_packet->th_seq + 1;
+            ctx->recd_next_byte_expected = tcp_packet->th_seq;// + 1;
             send_syn_ack_fin(sd, ctx, SEND_SYN | SEND_ACK, 
-                ctx->initial_sequence_num, ctx->initial_recd_seq_num + 1);
+                ctx->initial_sequence_num, ctx->initial_recd_seq_num;// + 1);
             ctx->recd_adv_window = tcp_packet->th_win;
             ctx->connection_state = CSTATE_SYN_RCVD;
         }
@@ -449,11 +449,11 @@ int handle_cstate_fin_wait_1(mysocket_t sd, context_t * ctx){
         ctx->connection_state = CSTATE_FIN_WAIT_2;
 
         /* else if ack + fin */
-        send_syn_ack_fin(sd, ctx, SEND_ACK, 0, ctx->initial_recd_seq_num + 1);
+        send_syn_ack_fin(sd, ctx, SEND_ACK, 0, ctx->initial_recd_seq_num;// + 1);
         ctx->connection_state = CSTATE_TIME_WAIT;
 
         /* else if fin */
-        send_syn_ack_fin(sd, ctx, SEND_ACK, 0, ctx->initial_recd_seq_num + 1);
+        send_syn_ack_fin(sd, ctx, SEND_ACK, 0, ctx->initial_recd_seq_num;// + 1);
         ctx->connection_state = CSTATE_CLOSING;
 
     } 
@@ -476,7 +476,7 @@ int handle_cstate_fin_wait_2(mysocket_t sd, context_t * ctx){
 
         /* if fin */
         /* TODO: send ack */
-        send_syn_ack_fin(sd, ctx, SEND_ACK, 0, ctx->initial_recd_seq_num + 1);
+        send_syn_ack_fin(sd, ctx, SEND_ACK, 0, ctx->initial_recd_seq_num;// + 1);
         ctx->connection_state = CSTATE_TIME_WAIT;
 
     } 
@@ -666,7 +666,7 @@ int handle_cstate_est_recv(mysocket_t sd, context_t * ctx){
 
 
         } else {
-            our_dprintf("bad packet");
+            our_dprintf("bad packet\n");
             return 0;
         }
     } else {
@@ -681,7 +681,7 @@ int handle_cstate_est_recv(mysocket_t sd, context_t * ctx){
         delta = MAX_WINDOW_SIZE - wind_index;
 
         /*copy data to ctx->buffer and send it to app */ 
-        memcpy(ctx->recv_wind + wind_index, data + data_index, delta); /* TODO: wind_index + 1 ?*/
+        memcpy(ctx->recv_wind + wind_index, data + data_index, delta); /* TODO: wind_index;// + 1 ?*/
         stcp_app_send( sd, ctx->recv_wind + wind_index, delta);
 
         memcpy(ctx->recv_wind, data + delta + data_index, data_len - delta);
@@ -734,7 +734,7 @@ int handle_cstate_est_send(mysocket_t sd, context_t * ctx){
 
     struct tcphdr * tcp_header = ( struct tcphdr *) header_buf;
 
-    tcp_header->th_seq = ctx->sent_last_byte_sent + 1;
+    tcp_header->th_seq = ctx->sent_last_byte_sent;// + 1;
     tcp_header->th_flags |= TH_SYN;
     
 
@@ -750,7 +750,7 @@ int handle_cstate_est_send(mysocket_t sd, context_t * ctx){
 
     /* copy the data into the tcp buffer */
 
-    uint32_t wind_index = ((ctx->sent_last_byte_written + 1) 
+    uint32_t wind_index = ((ctx->sent_last_byte_written;// + 1) 
                 - ctx->initial_sequence_num) % MAX_WINDOW_SIZE;
 
     /* we're wrapping the buffer */
