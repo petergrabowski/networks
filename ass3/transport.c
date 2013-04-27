@@ -223,7 +223,7 @@ int handle_cstate_closed(mysocket_t sd, context_t * ctx, bool_t is_active) {
         ctx->connection_state = CSTATE_SYN_SENT;
         our_dprintf("sent syn\n");
     } else {
-	our_dprintf("transitioning to listen state\n");
+        our_dprintf("transitioning to listen state\n");
         ctx->connection_state = CSTATE_LISTEN;
     }
     return ret;
@@ -262,7 +262,7 @@ int handle_cstate_listen(mysocket_t sd, context_t * ctx) {
         if (tcp_packet->th_flags & TH_SYN){
             /* syn received */
             ctx->initial_recd_seq_num = tcp_packet->th_seq; /*TODO: is +1 correct */
-            our_dprintf("init seq : %u\n" ,tcp_packet->th_seq);
+            our_dprintf("init recv seq : %u\n" ,ctx->initial_recd_seq_num);
             ctx->recd_last_byte_recd = ctx->initial_recd_seq_num;
             ctx->recd_next_byte_expected = ctx->initial_recd_seq_num + 1;
             ctx->recd_adv_window = tcp_packet->th_win;
@@ -312,6 +312,7 @@ int handle_cstate_syn_rcvd(mysocket_t sd, context_t * ctx) {
 
         if (tcp_packet->th_flags & TH_ACK){
             /* ack received */
+            our_dprintf("got an ack : %u\n", tcp_packet->th_ack);
             ctx->sent_last_byte_acked = tcp_packet->th_ack;
             ctx->recd_adv_window = tcp_packet->th_win;
             ctx->connection_state = CSTATE_ESTABLISHED;
@@ -356,13 +357,15 @@ int handle_cstate_syn_sent(mysocket_t sd, context_t * ctx) {
 
         /* if syn + ack */
         if (tcp_packet->th_flags & (TH_SYN | TH_ACK)) {
-            send_syn_ack_fin(sd, ctx, SEND_ACK, 0, 
-                ctx->initial_recd_seq_num + 1);
+            our_dprintf("got syn/ack. syn %u, ack %u", tcp_packet->th_syn, tcp_packet->th_ack);
             ctx->recd_adv_window = tcp_packet->th_win;
+            ctx->initial_recd_seq_num = tcp_packet->th_seq;
             ctx->sent_last_byte_acked = tcp_packet->th_ack;
             ctx->recd_last_byte_recd = tcp_packet->th_seq;
             ctx->recd_next_byte_expected = tcp_packet->th_seq + 1;
             ctx->connection_state = CSTATE_ESTABLISHED;
+            send_syn_ack_fin(sd, ctx, SEND_ACK, 0, 
+                ctx->initial_recd_seq_num + 1);
             our_dprintf("IN ESTABLISHED\n");
 
         /* else if syn */
