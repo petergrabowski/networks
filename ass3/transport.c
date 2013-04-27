@@ -625,7 +625,7 @@ int handle_cstate_est_recv(mysocket_t sd, context_t * ctx){
 
     /* check if any data was ack'd */
     if (tcp_packet->th_flags & TH_ACK) {
-        tcp_packet->sent_last_byte_acked = tcp_packet->th_ack;
+        ctx->sent_last_byte_acked = tcp_packet->th_ack;
     }
 
     /* check to see if the seq number is appropriate */
@@ -651,7 +651,7 @@ int handle_cstate_est_recv(mysocket_t sd, context_t * ctx){
         data_len = recv_packet_len;
         data_index = 0;
     }
-    uint8_t * data = tcp_packet + sizeof(struct tcphdr);
+    uint8_t * data = buff + sizeof(struct tcphdr);
     uint32_t wind_index = (ctx->recd_last_byte_recd - ctx->initial_recd_seq_num) % MAX_WINDOW_SIZE;    
 
     if (wind_index + data_len > MAX_WINDOW_SIZE){
@@ -679,7 +679,7 @@ int handle_cstate_est_recv(mysocket_t sd, context_t * ctx){
     ctx->recd_last_byte_read += data_len;
 
     /* TODO: is this too far delayed from receive? */
-    send_syn_ack_fin(mysocket_t, ctx, SEND_ACK, 0, ctx->recd_next_byte_expected);
+    send_syn_ack_fin(sd, ctx, SEND_ACK, 0, ctx->recd_next_byte_expected);
 
     if (tcp_packet->th_flags & TH_FIN) {
         ctx->connection_state = CSTATE_CLOSE_WAIT;
@@ -746,8 +746,8 @@ int handle_cstate_est_send(mysocket_t sd, context_t * ctx){
         /* don't need to wrap the buffer */
         memcpy(ctx->send_wind + wind_index, buff, recd_app);
         stcp_network_send(sd, header_buf, header_size, ctx->send_wind + wind_index, recd_app, NULL);
-        ctx->sent_last_byte_sent += data_len;
     }
+    ctx->sent_last_byte_sent += recd_app;
 
     ctx->sent_last_byte_written += recd_app;
 
