@@ -81,7 +81,7 @@
     } else if (ctx->connection_state == CSTATE_CLOSED) {
         ;
     }else {
-        perror("bad state in transport init");
+        our_dprintf("bad state in transport init");
         assert(0);
     }
 
@@ -118,7 +118,7 @@ static void generate_initial_seq_num(context_t *ctx)
  {
     assert(ctx);
     assert(!ctx->done);
-
+    our_dprintf("in control loop\n")
     while (!ctx->done)
     {
         unsigned int event;
@@ -130,18 +130,20 @@ static void generate_initial_seq_num(context_t *ctx)
         /* TODO: fill in below. check for conj of two states? */
 
         if (event & APP_DATA) {
+            our_dprintf("app data received \n");
             /* the application has requested that data be sent */
             /* see stcp_app_recv() */
             handle_cstate_est_send(sd, ctx);
         } 
         if (event & NETWORK_DATA) {
+            our_dprintf("network data received \n");
             /* there was network data received */
             /* TODO: check for FIN or receive data*/
             handle_cstate_est_recv(sd, ctx);
         } 
         if (event & APP_CLOSE_REQUESTED) {
             /* the application has requested that the conn be closed */
-
+            our_dprintf("close received \n");
             send_syn_ack_fin(sd, ctx, SEND_FIN, 0, 0);
             ctx->connection_state = CSTATE_FIN_WAIT_1;
 
@@ -205,7 +207,7 @@ int open_tcp_conn(mysocket_t sd, context_t * ctx, bool_t is_active) {
                 break;
             default:
                 /* shouldn't happen */
-                perror("bad open tcp conn state");
+                our_dprintf("bad open tcp conn state\n");
                 assert(0);
                 break;
         }
@@ -216,7 +218,7 @@ int open_tcp_conn(mysocket_t sd, context_t * ctx, bool_t is_active) {
 int handle_cstate_closed(mysocket_t sd, context_t * ctx, bool_t is_active) {
 
     int ret = 0;
-    perror("in cstate closed");
+    our_dprintf("in cstate closed\n");
     /* TODO: if closed from listen state, will it spin forever? */
 
     if (is_active) {
@@ -229,7 +231,7 @@ int handle_cstate_closed(mysocket_t sd, context_t * ctx, bool_t is_active) {
 }
 
 int handle_cstate_listen(mysocket_t sd, context_t * ctx) {
-    perror("in cstate listen");
+    our_dprintf("in cstate listen\n");
     int ret = 0;
     unsigned int event;
 
@@ -252,7 +254,7 @@ int handle_cstate_listen(mysocket_t sd, context_t * ctx) {
         size_t recd;
         recd = stcp_network_recv(sd, ctx->recv_wind, MAX_WINDOW_SIZE);
         if (recd == 0) {
-            perror("bad network recv");
+            our_dprintf("bad network recv\n");
             return -1;
         }
 
@@ -283,7 +285,7 @@ int handle_cstate_listen(mysocket_t sd, context_t * ctx) {
 int handle_cstate_syn_rcvd(mysocket_t sd, context_t * ctx) {
 
     int ret = 0;
-    perror("in cstate syn rcvd");
+    our_dprintf("in cstate syn rcvd\n");
     unsigned int event;
 
     /* TODO: you will need to change some of these arguments! how long to listen for */
@@ -300,7 +302,7 @@ int handle_cstate_syn_rcvd(mysocket_t sd, context_t * ctx) {
         size_t recd;
         recd = stcp_network_recv(sd, ctx->recv_wind, MAX_WINDOW_SIZE);
         if (recd == 0) {
-            perror("bad network recv");
+            our_dprintf("bad network recv\n");
             return -1;
         }
 
@@ -311,7 +313,7 @@ int handle_cstate_syn_rcvd(mysocket_t sd, context_t * ctx) {
 
             ctx->recd_adv_window = tcp_packet->th_win;
             ctx->connection_state = CSTATE_ESTABLISHED;
-            perror("IN ESTABLISHED\n");
+            our_dprintf("IN ESTABLISHED\n");
         }
     } 
 
@@ -342,7 +344,7 @@ int handle_cstate_syn_sent(mysocket_t sd, context_t * ctx) {
         size_t recd;
         recd = stcp_network_recv(sd, ctx->recv_wind, MAX_WINDOW_SIZE);
         if (recd == 0) {
-            perror("bad network recv");
+            our_dprintf("bad network recv\n");
             return -1;
         }
 
@@ -354,7 +356,7 @@ int handle_cstate_syn_sent(mysocket_t sd, context_t * ctx) {
                 ctx->initial_recd_seq_num + 1);
             ctx->recd_adv_window = tcp_packet->th_win;
             ctx->connection_state = CSTATE_ESTABLISHED;
-            perror("IN ESTABLISHED\n");
+            our_dprintf("IN ESTABLISHED\n");
 
         /* else if syn */
         } else if (tcp_packet->th_flags & TH_SYN){
@@ -410,7 +412,7 @@ int close_tcp_conn(mysocket_t sd, context_t * ctx) {
                 break;
             default:
                 /* shouldn't happen */
-                perror("bad close ctcp state");
+                our_dprintf("bad close ctcp state\n");
                 assert(0);
         }
     }
@@ -421,7 +423,7 @@ int close_tcp_conn(mysocket_t sd, context_t * ctx) {
 
 int handle_cstate_fin_wait_1(mysocket_t sd, context_t * ctx){
     int ret = 0;
-    perror("in cstate fin wait 1");
+    our_dprintf("in cstate fin wait 1\n");
     unsigned int event;
 
     /* TODO: you will need to change some of these arguments! how long to listen for */
@@ -450,7 +452,7 @@ int handle_cstate_fin_wait_1(mysocket_t sd, context_t * ctx){
 
 int handle_cstate_fin_wait_2(mysocket_t sd, context_t * ctx){
     int ret = 0;
-    perror("in cstate fin wait 2");
+    our_dprintf("in cstate fin wait 2\n");
     unsigned int event;
 
     /* TODO: you will need to change some of these arguments! how long to listen for */
@@ -473,7 +475,7 @@ int handle_cstate_fin_wait_2(mysocket_t sd, context_t * ctx){
 
 int handle_cstate_closing(mysocket_t sd, context_t * ctx){
     int ret = 0;
-    perror("in cstate closing ");
+    our_dprintf("in cstate closing\n ");
     unsigned int event;
 
     /* TODO: you will need to change some of these arguments! how long to listen for */
@@ -494,7 +496,7 @@ int handle_cstate_closing(mysocket_t sd, context_t * ctx){
 
 int handle_cstate_time_wait(mysocket_t sd, context_t * ctx){
     int ret = 0;
-    perror("in cstate time wait");
+    our_dprintf("in cstate time wait\n");
     // unsigned int event;
 
     /* TODO: set timeout appropriately, two seg lifetimes */
@@ -516,7 +518,7 @@ int handle_cstate_time_wait(mysocket_t sd, context_t * ctx){
 
 int handle_cstate_close_wait(mysocket_t sd, context_t * ctx){
     int ret = 0;
-    perror("in cstate close wait");
+    our_dprintf("in cstate close wait\n");
     unsigned int event;
 
     /* TODO: set timeout appropriately, two seg lifetimes */
@@ -540,7 +542,7 @@ int handle_cstate_last_ack(mysocket_t sd, context_t * ctx){
     int ret = 0;
 
     unsigned int event;
-
+    our_dprintf("in last ack\n")
     /* TODO: you will need to change some of these arguments! how long to listen for */
     event = stcp_wait_for_event(sd, NETWORK_DATA | TIMEOUT, NULL);
 
@@ -558,7 +560,6 @@ int handle_cstate_last_ack(mysocket_t sd, context_t * ctx){
 
 int send_syn_ack_fin(mysocket_t sd, context_t * ctx, uint8_t to_send_flags, 
     tcp_seq seq_num, tcp_seq ack_num) {
-
 
     size_t len =  sizeof(struct tcphdr);
     uint8_t buff[len];
@@ -597,7 +598,7 @@ int send_syn_ack_fin(mysocket_t sd, context_t * ctx, uint8_t to_send_flags,
     ssize_t n = stcp_network_send(sd, buff , len, 0);
     if (n == -1){
         fprintf(stderr,"error: client bad send\n");
-        perror("send");
+        our_dprintf("send");
         return -1;
     }
 
@@ -615,7 +616,7 @@ uint16_t calc_eff_window(context_t * ctx) {
 }
 
 int handle_cstate_est_recv(mysocket_t sd, context_t * ctx){
-    perror("in cstate est rect "); 
+    our_dprintf("in cstate est rect "); 
     /* TODO: check incoming syn/ack/fin packets */
     size_t len =  sizeof(struct tcphdr) + ctx->sent_adv_window;
     uint8_t buff[len];
@@ -633,7 +634,7 @@ int handle_cstate_est_recv(mysocket_t sd, context_t * ctx){
 
     /* check to see if the seq number is appropriate */
     if (tcp_packet->th_seq != ctx->recd_next_byte_expected){
-        perror("unexpected ack");
+        our_dprintf("unexpected ack");
 
         /* if part of the data is below the seq window */
         if ((tcp_packet->th_seq < ctx->recd_next_byte_expected) && 
@@ -647,7 +648,7 @@ int handle_cstate_est_recv(mysocket_t sd, context_t * ctx){
 
 
         } else {
-            perror("bad packet");
+            our_dprintf("bad packet");
             return 0;
         }
     } else {
@@ -696,7 +697,7 @@ int handle_cstate_est_recv(mysocket_t sd, context_t * ctx){
 
 
 int handle_cstate_est_send(mysocket_t sd, context_t * ctx){
-    perror("in cstate est send");
+    our_dprintf("in cstate est send");
     size_t max_to_send = calc_eff_window(ctx);
     if (max_to_send == 0) {
         return 0;
