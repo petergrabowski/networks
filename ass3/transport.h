@@ -125,20 +125,23 @@ typedef struct tcphdr
 /* this structure is global to a mysocket descriptor */
  typedef struct
  {
-    bool_t done;                  /* TRUE once connection is closed */
-
-    int connection_state;         /* state of the connection (established, etc.) */
-
-    tcp_seq initial_sequence_num; /* local initial seq num */
-    tcp_seq initial_recd_seq_num; /* recd initial seq num */
-
-    int sent_last_byte_acked;     /* the last byte that was ackd */
-    int sent_last_byte_written;   /* the most recent written byte */
-    int sent_last_byte_sent;      /* the last byte that was sent */
-
-    int recd_last_byte_read;      /* the last byte that was read */
-    int recd_next_byte_expected;  /* the next byte that's expected */
-    int recd_last_byte_recd;      /* the last byte that was recd */
+    bool_t done;                      /* TRUE once connection is closed */
+    
+    int connection_state;             /* state of the connection (established, etc.) */
+    
+    tcp_seq initial_sequence_num;     /* local initial seq num */
+    tcp_seq initial_recd_seq_num;     /* recd initial seq num */
+    
+    uint32_t sent_last_byte_acked;    /* the last byte that was ackd */
+    uint32_t sent_last_byte_written;  /* the most recent written byte */
+    uint32_t sent_last_byte_sent;     /* the last byte that was sent */
+    
+    uint32_t recd_last_byte_read;     /* the last byte that was read */
+    uint32_t recd_last_byte_recd;     /* the last byte that was recd */
+    uint32_t recd_next_byte_expected; /* the next byte that's expected */
+    
+    uint16_t sent_adv_window;         /* size of our adv window */
+    uint16_t recd_adv_window;         /* size of the senders adv window */
 
     uint8_t * send_wind;
     uint8_t * recv_wind;
