@@ -34,7 +34,6 @@
         CSTATE_CLOSE_WAIT,  /* close wait state */
         CSTATE_LAST_ACK,    /* last ack */
  };    
- bool_t global_active;
  static void generate_initial_seq_num(context_t *ctx);
  static void control_loop(mysocket_t sd, context_t *ctx);
 
@@ -48,7 +47,6 @@
     context_t *ctx;
     int res;
     ctx = (context_t *) calloc(1, sizeof(context_t));
-    global_active = is_active;
     assert(ctx);
 
     generate_initial_seq_num(ctx);
@@ -100,12 +98,8 @@ static void generate_initial_seq_num(context_t *ctx)
     ctx->initial_sequence_num = 1;
 #else
     /* assign a random initial seq num from 0 - 255 */
-    srand(time(NULL));
+    srand(time(NULL) + (unsigned long int) ctx );
     ctx->initial_sequence_num = random() % 255;
-    if (global_active){
-        our_dprintf("in isactive\n");
-        ctx->initial_sequence_num = random() % 255;
-    }
 #endif
     our_dprintf("generated init seq %u\n", ctx->initial_sequence_num);
 }
@@ -122,7 +116,6 @@ static void generate_initial_seq_num(context_t *ctx)
  {
     assert(ctx);
     assert(!ctx->done);
-    our_dprintf("in control loop\n");
     while (!ctx->done)
     {
         unsigned int event;
@@ -226,9 +219,7 @@ int handle_cstate_closed(mysocket_t sd, context_t * ctx, bool_t is_active) {
     if (is_active) {
         send_syn_ack_fin(sd, ctx, SEND_SYN, ctx->initial_sequence_num, 0);
         ctx->connection_state = CSTATE_SYN_SENT;
-        our_dprintf("sent syn\n");
     } else {
-        our_dprintf("transitioning to listen state\n");
         ctx->connection_state = CSTATE_LISTEN;
     }
     return ret;
@@ -393,7 +384,6 @@ int handle_cstate_syn_sent(mysocket_t sd, context_t * ctx) {
         }
 
     } 
-    our_dprintf("init recd seq : %u\n", ctx->initial_recd_seq_num);
     if (event & APP_CLOSE_REQUESTED) {
         /* the application has requested that the conn be closed */
         our_dprintf("got close req\n"); 
@@ -602,11 +592,7 @@ int send_syn_ack_fin(mysocket_t sd, context_t * ctx, uint8_t to_send_flags,
         tcp_packet->th_flags |= TH_SYN;
         ctx->sent_last_byte_written = seq_num;
         ctx->sent_last_byte_sent = seq_num;
-        our_dprintf("sending syn: %u\n", seq_num);
     } else {
-        //our_dprintf("acked %u written %u sent %u\n", ctx->sent_last_byte_acked, ctx->sent_last_byte_written+1, ctx->sent_last_byte_sent+1);
-        //ctx->sent_last_byte_sent++;
-        //ctx->sent_last_byte_written++;
         tcp_packet->th_seq = ctx->sent_last_byte_sent + 1;
         if (to_send_flags & SEND_FIN) {
             ctx->sent_last_byte_sent++;
@@ -617,12 +603,7 @@ int send_syn_ack_fin(mysocket_t sd, context_t * ctx, uint8_t to_send_flags,
     if (to_send_flags & SEND_ACK) {
         tcp_packet->th_ack = ack_num;
         tcp_packet->th_flags |= TH_ACK;
-        //ctx->sent_last_byte_acked = ack_num
-    } //else {
-      //  tcp_packet->th_ack = ctx->recd_next_byte_expected;
-      //  tcp_packet->th_flags |= TH_ACK;
-      //  our_dprintf("sending implicit ack: %u\n", ctx->recd_next_byte_expected);
-   // }
+    } 
 
     if (to_send_flags & SEND_FIN) {
         tcp_packet->th_flags |= TH_FIN;
@@ -642,7 +623,6 @@ int send_syn_ack_fin(mysocket_t sd, context_t * ctx, uint8_t to_send_flags,
     ssize_t n = stcp_network_send(sd, buff , len, 0);
     if (n == -1){
         fprintf(stderr,"error: client bad send\n");
-        our_dprintf("send");
         return -1;
     }
 
@@ -666,22 +646,18 @@ int handle_cstate_est_recv(mysocket_t sd, context_t * ctx){
     uint8_t buff[len];
     uint32_t data_len, data_index;
     size_t delta, recv_len, recv_packet_len;
-    our_dprintf("waiting to recv from network \n");
     recv_len = stcp_network_recv(sd, buff, len);
     our_dprintf("recvd %u bytes from network\n", recv_len);
     struct tcphdr * tcp_packet  = (struct tcphdr *) buff;
     size_t hdr_size = tcp_packet->th_off * 4;
     recv_packet_len = recv_len - 4 * tcp_packet->th_off;
+    our_dprintf("header seq %u ack %u off %u flags %u win %u urp %u\n", tcp_packet->th_seq, tcp_packet->th_ack, tcp_packet->th_off, tcp_packet->th_flags, tcp_packet->th_win, tcp_packet->th_urp);
 
     /* check if any data was ack'd */
     if (tcp_packet->th_flags & TH_ACK) {
         ctx->sent_last_byte_acked = tcp_packet->th_ack;
         our_dprintf("got an ack in est recv: %u\n", tcp_packet->th_ack);
     }
-    //if (recv_packet_len == 0 ) {
-    //    our_dprintf("est recv packet len 0\n");
-    //    return 0;
-    //}
     /* check to see if the seq number is appropriate */
     if (tcp_packet->th_seq != ctx->recd_next_byte_expected){
         our_dprintf("unexpected seq. rec seq : %u, expected : %u\n", tcp_packet->th_seq, ctx->recd_next_byte_expected);
@@ -703,13 +679,13 @@ int handle_cstate_est_recv(mysocket_t sd, context_t * ctx){
             return 0;
         }
     } else {
+        our_dprintf("seq number as expected \n");
         data_len = recv_packet_len;
         data_index = 0;
     }
-    our_dprintf("about to copy the data into recv window\n");
-    uint8_t * data = buff + hdr_size;
-    uint32_t wind_index = ((ctx->recd_last_byte_recd + 1) - ctx->initial_recd_seq_num) % MAX_WINDOW_SIZE;    
-    our_dprintf("received data: \n", data);
+    uint8_t * data = buff + hdr_size; /*TODO is this right?? */
+    uint32_t wind_index = ((ctx->recd_last_byte_recd + 1) - ctx->initial_recd_seq_num) % MAX_WINDOW_SIZE;   
+    our_dprintf("received data: %s\n", data);
     if (wind_index + data_len > MAX_WINDOW_SIZE){
         /* we're wrapping the buffer */
         delta = MAX_WINDOW_SIZE - wind_index;
@@ -724,9 +700,10 @@ int handle_cstate_est_recv(mysocket_t sd, context_t * ctx){
     } else {
         /* we're not wrapping the buffer */
         our_dprintf("don't need to wrap, data len %d\n", data_len);
-        /*copy data to ctx->buffer and send it to app */ 
+        /*copy data to ctx->buffer and send it to app */
+        our_dprintf("data index %u\n", data_index); 
         memcpy(ctx->recv_wind + wind_index, data + data_index, data_len);
-        stcp_app_send( sd, ctx->recv_wind, data_len);
+        stcp_app_send( sd, ctx->recv_wind + wind_index, data_len);
     }
 
     /* TODO: make sure these are set elsewhere as well. is this right? */
@@ -780,9 +757,6 @@ int handle_cstate_est_send(mysocket_t sd, context_t * ctx){
     tcp_header->th_flags |= TH_SYN;
     
 
-    //tcp_header->th_ack = ctx->recd_next_byte_expected;
-    //tcp_header->th_flags |= TH_ACK;
-    our_dprintf("sending data. seq : %u,  len %u\n", tcp_header->th_seq, recd_app);
     tcp_header->th_off = 5; /* no options, data begins 20 bytes into packet */
 
     /* set adv window size */
@@ -811,8 +785,7 @@ int handle_cstate_est_send(mysocket_t sd, context_t * ctx){
         our_dprintf("not wrapping the buffer\n");
         memcpy(ctx->send_wind + wind_index, buff, recd_app);
         our_dprintf("send wind buff %s\n", ctx->send_wind + wind_index);
-        stcp_network_send(sd, header_buf, header_size, ctx->send_wind + wind_index, recd_app, NULL);
-        our_dprintf("data in send buff: %s\n", ctx->send_wind + wind_index);
+        stcp_network_send(sd, header_buf, header_size, (ctx->send_wind + wind_index), recd_app, NULL);
     }
     ctx->sent_last_byte_sent += recd_app;
 
