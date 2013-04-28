@@ -805,7 +805,8 @@ int handle_cstate_est_recv(mysocket_t sd, context_t * ctx){
 
 int handle_cstate_est_send(mysocket_t sd, context_t * ctx){
     our_dprintf("in cstate est send\n");
-    size_t max_to_send = calc_eff_window(ctx);
+    size_t eff_wind = calc_eff_window(ctx);
+    size_t max_to_send = MIN(eff_wind, STCP_MSS);
     if (max_to_send == 0) {
         our_dprintf("window too small to send, returning \n");
         return 0;
