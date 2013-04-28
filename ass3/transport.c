@@ -609,7 +609,7 @@ int send_syn_ack_fin(mysocket_t sd, context_t * ctx, uint8_t to_send_flags,
         tcp_packet->th_flags |= TH_FIN;
         ctx->sent_last_byte_sent++;
         ctx->sent_last_byte_written++;
-        tcp_packet->th_seq = ctx->sent_last_byte_sent;        
+        //tcp_packet->th_seq = ctx->sent_last_byte_sent;        
         our_dprintf("sending fin , seq: %u\n",  ctx->sent_last_byte_sent);
     }
 
