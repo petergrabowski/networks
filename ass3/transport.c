@@ -444,19 +444,33 @@ int handle_cstate_fin_wait_1(mysocket_t sd, context_t * ctx){
 
     /* check whether it was the network, app, or a close request */
 
+    uint8_t buff[MAX_WINDOW_SIZE + sizeof(struct tcphdr)];
     if (event & NETWORK_DATA) {
         /* there was network data received */
 
-        /* if ack */
-        ctx->connection_state = CSTATE_FIN_WAIT_2;
+        size_t recd;
+        recd = stcp_network_recv(sd, buff, MAX_WINDOW_SIZE);
+        if (recd == 0) {
+            our_dprintf("bad network recv\n");
+            return -1;
+        }
 
-        /* else if ack + fin */
-        send_syn_ack_fin(sd, ctx, SEND_ACK, 0, ctx->initial_recd_seq_num);// + 1);
-        ctx->connection_state = CSTATE_TIME_WAIT;
+        struct tcphdr * tcp_packet  = (struct tcphdr *) buff;
 
+        if (tcp_packet->th_flags & (TH_ACK | TH_FIN)) {
+            /* else if ack + fin */
+            send_syn_ack_fin(sd, ctx, SEND_ACK, 0, ctx->recd_next_byte_expected);
+            ctx->connection_state = CSTATE_TIME_WAIT;
+        } else if (tcp_packet->th_flags & TH_ACK){
+            /* ack received */
+
+            ctx->connection_state = CSTATE_FIN_WAIT_2;
+
+        } else if (tcp_packet->th_flags &  TH_FIN){
         /* else if fin */
-        send_syn_ack_fin(sd, ctx, SEND_ACK, 0, ctx->initial_recd_seq_num);// + 1);
-        ctx->connection_state = CSTATE_CLOSING;
+            send_syn_ack_fin(sd, ctx, SEND_ACK, 0, ctx->recd_next_byte_expected);
+            ctx->connection_state = CSTATE_CLOSING;
+        }
 
     } 
 
@@ -473,16 +487,27 @@ int handle_cstate_fin_wait_2(mysocket_t sd, context_t * ctx){
 
     /* check whether it was the network, app, or a close request */
 
+
+    uint8_t buff[MAX_WINDOW_SIZE + sizeof(struct tcphdr)];
     if (event & NETWORK_DATA) {
         /* there was network data received */
 
-        /* if fin */
-        /* TODO: send ack */
-        send_syn_ack_fin(sd, ctx, SEND_ACK, 0, ctx->initial_recd_seq_num);// + 1);
-        ctx->connection_state = CSTATE_TIME_WAIT;
+        size_t recd;
+        recd = stcp_network_recv(sd, buff, MAX_WINDOW_SIZE);
+        if (recd == 0) {
+            our_dprintf("bad network recv\n");
+            return -1;
+        }
+
+        struct tcphdr * tcp_packet  = (struct tcphdr *) buff;
+
+        if (tcp_packet->th_flags &  TH_FIN){
+            /*  if fin */
+            send_syn_ack_fin(sd, ctx, SEND_ACK, 0, ctx->recd_next_byte_expected);
+            ctx->connection_state = CSTATE_TIME_WAIT;
+        }
 
     } 
-
     return ret;    
 }
 
@@ -495,12 +520,23 @@ int handle_cstate_closing(mysocket_t sd, context_t * ctx){
     event = stcp_wait_for_event(sd, NETWORK_DATA | TIMEOUT, NULL);
 
     /* check whether it was the network, app, or a close request */
-
+    uint8_t buff[MAX_WINDOW_SIZE + sizeof(struct tcphdr)];
     if (event & NETWORK_DATA) {
         /* there was network data received */
 
-        /* if ack */
-        ctx->connection_state = CSTATE_TIME_WAIT;
+        size_t recd;
+        recd = stcp_network_recv(sd, buff, MAX_WINDOW_SIZE);
+        if (recd == 0) {
+            our_dprintf("bad network recv\n");
+            return -1;
+        }
+
+        struct tcphdr * tcp_packet  = (struct tcphdr *) buff;
+
+        if (tcp_packet->th_flags &  TH_ACK){
+            /*  if ack */
+            ctx->connection_state = CSTATE_TIME_WAIT;
+        }
 
     } 
 
@@ -510,20 +546,7 @@ int handle_cstate_closing(mysocket_t sd, context_t * ctx){
 int handle_cstate_time_wait(mysocket_t sd, context_t * ctx){
     int ret = 0;
     our_dprintf("in cstate time wait\n");
-    // unsigned int event;
 
-    /* TODO: set timeout appropriately, two seg lifetimes */
-    // event = stcp_wait_for_event(sd, TIMEOUT, NULL);
-
-    /* check whether it was the network, app, or a close request */
-
-    /* TODO: fill in below. check for conj of states? */
-    // if (event & TIMEOUT) {
-    //      there was a timeout  
-
-    //     ctx->connection_state = CSTATE_CLOSED;
-
-    // } 
 
     ctx->connection_state = CSTATE_CLOSED;
     return ret;    
@@ -561,11 +584,24 @@ int handle_cstate_last_ack(mysocket_t sd, context_t * ctx){
 
     /* check whether it was the network, app, or a close request */
 
+    uint8_t buff[MAX_WINDOW_SIZE + sizeof(struct tcphdr)];
     if (event & NETWORK_DATA) {
         /* there was network data received */
 
-        /* if ack */
-        ctx->connection_state = CSTATE_CLOSED;
+        size_t recd;
+        recd = stcp_network_recv(sd, buff, MAX_WINDOW_SIZE);
+        if (recd == 0) {
+            our_dprintf("bad network recv\n");
+            return -1;
+        }
+
+        struct tcphdr * tcp_packet  = (struct tcphdr *) buff;
+
+        if (tcp_packet->th_flags &  TH_ACK){
+            /*  if fin */
+            ctx->connection_state = CSTATE_CLOSED;
+
+        }
 
     } 
     return ret;    
@@ -609,7 +645,6 @@ int send_syn_ack_fin(mysocket_t sd, context_t * ctx, uint8_t to_send_flags,
         tcp_packet->th_flags |= TH_FIN;
         ctx->sent_last_byte_sent++;
         ctx->sent_last_byte_written++;
-        //tcp_packet->th_seq = ctx->sent_last_byte_sent;        
         our_dprintf("sending fin , seq: %u\n",  ctx->sent_last_byte_sent);
     }
 
