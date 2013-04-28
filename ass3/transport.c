@@ -133,17 +133,17 @@ static void generate_initial_seq_num(context_t *ctx)
         /* check whether it was the network, app, or a close request */
         /* TODO: fill in below. check for conj of two states? */
 
-        if (event & APP_DATA) {
-            our_dprintf("app data received \n");
-            /* the application has requested that data be sent */
-            /* see stcp_app_recv() */
-            handle_cstate_est_send(sd, ctx);
-        } 
         if (event & NETWORK_DATA) {
             our_dprintf("network data received \n");
             /* there was network data received */
             /* TODO: check for FIN or receive data*/
             handle_cstate_est_recv(sd, ctx);
+        } 
+        if (event & APP_DATA) {
+            our_dprintf("app data received \n");
+            /* the application has requested that data be sent */
+            /* see stcp_app_recv() */
+            handle_cstate_est_send(sd, ctx);
         } 
         if (event & APP_CLOSE_REQUESTED) {
             /* the application has requested that the conn be closed */
@@ -243,12 +243,6 @@ int handle_cstate_listen(mysocket_t sd, context_t * ctx) {
     event = stcp_wait_for_event(sd, ANY_EVENT, NULL);
 
     /* check whether it was the network, app, or a close request */
-    if (event & APP_DATA) {
-        /* the application has requested that data be sent */
-
-        send_syn_ack_fin(sd, ctx, SEND_SYN, ctx->initial_sequence_num, 0);
-        ctx->connection_state = CSTATE_SYN_SENT;
-    } 
 
     if (event & NETWORK_DATA) {
         /* there was network data received */
@@ -277,6 +271,12 @@ int handle_cstate_listen(mysocket_t sd, context_t * ctx) {
             ctx->connection_state = CSTATE_SYN_RCVD;
         }
 
+    } 
+    if (event & APP_DATA) {
+        /* the application has requested that data be sent */
+
+        send_syn_ack_fin(sd, ctx, SEND_SYN, ctx->initial_sequence_num, 0);
+        ctx->connection_state = CSTATE_SYN_SENT;
     } 
 
     if (event & APP_CLOSE_REQUESTED) {
@@ -742,6 +742,7 @@ int handle_cstate_est_recv(mysocket_t sd, context_t * ctx){
 
     if (tcp_packet->th_flags & TH_FIN) {
         our_dprintf("close req'd\n");
+        stcp_fin_received(sd);
         ctx->connection_state = CSTATE_CLOSE_WAIT;
         close_tcp_conn(sd, ctx);
         /* TODO: send another ack? */
