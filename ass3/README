@@ -58,3 +58,11 @@ combat this by making sure the control loop checked network events before app
 events, but this was not successful. I was unable to determine why this is the
 case, but am hopeful it's only a simple check that I missed The code seems to
  work well for files smaller than the buffer.
+
+Finally, the remaining prints (very strangely) have an effect on the flow
+of the code. The prints left in are a minimal set; without them the code
+will not run. I have spent many hours trying to debug this without any luck. 
+If you have any insight I would very much appreciate it. I tried debugging it
+too much, and managed to make it so it no longer prints "client, filename " on
+ the server side. I was unable to get it back, even with the help of git and
+diff.

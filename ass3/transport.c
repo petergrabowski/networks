@@ -368,7 +368,7 @@ int handle_cstate_syn_rcvd(mysocket_t sd, context_t * ctx) {
             }
             ctx->sent_last_byte_acked = ntohl(tcp_packet->th_ack);
             ctx->recd_adv_window = ntohs(tcp_packet->th_win);
-            our_dprintf("*** got ack %u, got adv window %u\n", ctx->sent_last_byte_acked, ctx->recd_adv_window);
+            //our_dprintf("*** got ack %u, got adv window %u\n", ctx->sent_last_byte_acked, ctx->recd_adv_window);
             ctx->connection_state = CSTATE_ESTABLISHED;
         }
     } 
@@ -412,7 +412,7 @@ int handle_cstate_syn_sent(mysocket_t sd, context_t * ctx) {
             ctx->initial_recd_seq_num = ntohl(tcp_packet->th_seq);
             ctx->sent_last_byte_acked = ntohl(tcp_packet->th_ack);
             ctx->recd_last_byte_recd = ntohl(tcp_packet->th_seq);
-            our_dprintf("*** got ack %u, got adv win 3 = %u\n",ctx->sent_last_byte_acked ,ctx->recd_adv_window);
+            //our_dprintf("*** got ack %u, got adv win 3 = %u\n",ctx->sent_last_byte_acked ,ctx->recd_adv_window);
             ctx->recd_next_byte_expected = ctx->recd_last_byte_recd + 1;
             ctx->connection_state = CSTATE_ESTABLISHED;
             send_syn_ack_fin(sd, ctx, SEND_ACK, 0, 
@@ -525,7 +525,7 @@ int handle_cstate_fin_wait_1(mysocket_t sd, context_t * ctx){
                 return -1;
             }
             ctx->sent_last_byte_acked = ntohl(tcp_packet->th_ack);
-            our_dprintf("*** got an ack %u\n", ctx->sent_last_byte_acked);
+            //our_dprintf("*** got an ack %u\n", ctx->sent_last_byte_acked);
             ctx->connection_state = CSTATE_FIN_WAIT_2;
 
         } else if (tcp_packet->th_flags &  TH_FIN){
@@ -605,7 +605,7 @@ int handle_cstate_closing(mysocket_t sd, context_t * ctx){
                 our_dprintf("bad ack, expected %u, received %u. returning \n", ctx->sent_last_byte_sent+1, tcp_packet->th_ack);
                 return -1;
             }
-            our_dprintf("*** got an ack %u\n", ctx->sent_last_byte_acked);
+            //our_dprintf("*** got an ack %u\n", ctx->sent_last_byte_acked);
             ctx->sent_last_byte_acked = ntohl(tcp_packet->th_ack);
             ctx->connection_state = CSTATE_TIME_WAIT;
         }
@@ -632,7 +632,7 @@ int handle_cstate_close_wait(mysocket_t sd, context_t * ctx){
     time_t curtime;
 
     curtime = time(0);
-    our_dprintf("curtime = %u\n", curtime);
+    //our_dprintf("curtime = %u\n", curtime);
     wait_time.tv_sec = curtime + 240; /* wait atleast 2 lifetimes */
     wait_time.tv_nsec = 0; 
     event = stcp_wait_for_event(sd, APP_CLOSE_REQUESTED | TIMEOUT, &wait_time);
@@ -678,7 +678,7 @@ int handle_cstate_last_ack(mysocket_t sd, context_t * ctx){
                 our_dprintf("bad ack, expected %u, received %u. returning \n", ctx->sent_last_byte_sent+1, tcp_packet->th_ack);
                 return -1;
             }
-            our_dprintf("*** got an ack %u\n", ctx->sent_last_byte_acked);
+            //our_dprintf("*** got an ack %u\n", ctx->sent_last_byte_acked);
             ctx->sent_last_byte_acked = ntohl(tcp_packet->th_ack);
             ctx->connection_state = CSTATE_CLOSED;
 
@@ -711,7 +711,7 @@ int send_syn_ack_fin(mysocket_t sd, context_t * ctx, uint8_t to_send_flags,
     if (to_send_flags & SEND_ACK) {
         tcp_packet->th_ack = htonl(ack_num);
         tcp_packet->th_flags |= TH_ACK;
-        our_dprintf("sending ack %u\n", ack_num);
+        //our_dprintf("sending ack %u\n", ack_num);
     } 
 
     if (to_send_flags & SEND_FIN) {
@@ -740,7 +740,7 @@ uint16_t calc_adv_wind(context_t * ctx) {
 }
 
 uint16_t calc_eff_window(context_t * ctx) {
-    our_dprintf("EFF WINDOW :rec adv wind %u, last sent %u, last acked %u\n", ctx->recd_adv_window, ctx->sent_last_byte_sent, ctx->sent_last_byte_acked);
+    //our_dprintf("EFF WINDOW :rec adv wind %u, last sent %u, last acked %u\n", ctx->recd_adv_window, ctx->sent_last_byte_sent, ctx->sent_last_byte_acked);
     return ctx->recd_adv_window - (ctx->sent_last_byte_sent - ctx->sent_last_byte_acked);
 }
 
@@ -763,16 +763,16 @@ int handle_cstate_est_recv(mysocket_t sd, context_t * ctx){
             return -1;
         }
         ctx->sent_last_byte_acked = ntohl(tcp_packet->th_ack);
-        our_dprintf("****got an ack: %u\n", tcp_packet->th_ack);
+        //our_dprintf("****got an ack: %u\n", tcp_packet->th_ack);
     }
     /* check to see if the seq number is appropriate */
     if (ntohl(tcp_packet->th_seq) != ctx->recd_next_byte_expected){
-        our_dprintf("unexpected seq. rec seq : %u, expected : %u\n", tcp_packet->th_seq, ctx->recd_next_byte_expected);
+        //our_dprintf("unexpected seq. rec seq : %u, expected : %u\n", tcp_packet->th_seq, ctx->recd_next_byte_expected);
 
         /* if part of the data is below the seq window */
         if ((ntohl(tcp_packet->th_seq) < ctx->recd_next_byte_expected) && 
             (ntohl(tcp_packet->th_seq) + recv_packet_len > ctx->recd_next_byte_expected)){
-            our_dprintf("some data salvageable\n");
+            //our_dprintf("some data salvageable\n");
             /* some of the data should be salvaged */
             data_len = ntohl(tcp_packet->th_seq) + recv_packet_len - ctx->recd_next_byte_expected;
             data_index = recv_packet_len - data_len;
@@ -780,7 +780,7 @@ int handle_cstate_est_recv(mysocket_t sd, context_t * ctx){
             /* placeholder for if data overflows upper bound of sliding window */
 
         } else {
-            our_dprintf("bad packet\n");
+            //our_dprintf("bad packet\n");
             return 0;
         }
     } else {
@@ -789,12 +789,12 @@ int handle_cstate_est_recv(mysocket_t sd, context_t * ctx){
     }
     uint8_t * data = buff + hdr_size; 
     uint32_t wind_index = ((ctx->recd_last_byte_recd + 1) - ctx->initial_recd_seq_num) % MAX_WINDOW_SIZE;  
-    our_dprintf("window index %u, data len %u\n", wind_index, data_len); 
+    //our_dprintf("window index %u, data len %u\n", wind_index, data_len); 
     //our_dprintf("received data: %s\n", data);
     if (wind_index + data_len > MAX_WINDOW_SIZE){
         /* we're wrapping the buffer */
         delta = MAX_WINDOW_SIZE - wind_index;
-        our_dprintf("wrapping recv buff \n");
+        //our_dprintf("wrapping recv buff \n");
         /*copy data to ctx->buffer and send it to app */ 
         memcpy(ctx->recv_wind + wind_index, data + data_index, delta); 
         stcp_app_send( sd, ctx->recv_wind + wind_index, delta);
@@ -804,7 +804,7 @@ int handle_cstate_est_recv(mysocket_t sd, context_t * ctx){
         
     } else {
         /* we're not wrapping the buffer */
-        our_dprintf("don't need to wrap, data len %d\n", data_len);
+        //our_dprintf("don't need to wrap, data len %d\n", data_len);
         /*copy data to ctx->buffer and send it to app */
         memcpy(ctx->recv_wind + wind_index, data + data_index, data_len);
         stcp_app_send( sd, ctx->recv_wind + wind_index, data_len);
@@ -815,10 +815,10 @@ int handle_cstate_est_recv(mysocket_t sd, context_t * ctx){
     ctx->recd_last_byte_read += data_len;
 
     if (data_len > 0 ) {
-        our_dprintf("acking %u bytes\n", data_len);
+        //our_dprintf("acking %u bytes\n", data_len);
         send_syn_ack_fin(sd, ctx, SEND_ACK, 0, ctx->recd_next_byte_expected);
     } else {
-        our_dprintf("** flags %u\n", tcp_packet->th_flags);
+        //our_dprintf("** flags %u\n", tcp_packet->th_flags);
     }
     
 
@@ -840,14 +840,14 @@ int handle_cstate_est_recv(mysocket_t sd, context_t * ctx){
 
 
 int handle_cstate_est_send(mysocket_t sd, context_t * ctx){
-    our_dprintf("*IN EST SEND\n");
+    //our_dprintf("*IN EST SEND\n");
     size_t eff_wind = calc_eff_window(ctx);
     size_t max_to_send = MIN(eff_wind, STCP_MSS);
     if (max_to_send == 0) {
-        our_dprintf("window too small to send min(%u, %u) \n", eff_wind, STCP_MSS);
+        //our_dprintf("window too small to send min(%u, %u) \n", eff_wind, STCP_MSS);
         return 0;
     }
-    our_dprintf("max to send %u\n", max_to_send);
+    //our_dprintf("max to send %u\n", max_to_send);
     /* receive data from app */
     size_t recd_app;
     uint8_t buff[max_to_send];
