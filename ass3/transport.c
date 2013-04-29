@@ -16,7 +16,7 @@
 #include <stdlib.h>
 #include <assert.h>
 #include <arpa/inet.h>
-#include <sys/time.h>
+#include <time.h>
 #include "mysock.h"
 #include "stcp_api.h"
 #include "transport.h"
@@ -32,7 +32,7 @@ enum {
         CSTATE_CLOSING,     /* currently closing */
         CSTATE_TIME_WAIT,   /* waiting timeout */ 
         CSTATE_CLOSE_WAIT,  /* close wait state */
-        CSTATE_LAST_ACK    /* last ack */
+        CSTATE_LAST_ACK,    /* last ack */
  };    
  static void generate_initial_seq_num(context_t *ctx);
  static void control_loop(mysocket_t sd, context_t *ctx);

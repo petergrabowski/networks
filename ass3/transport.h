@@ -201,5 +201,5 @@ uint16_t calc_adv_wind(context_t * ctx);
 /* calc how much data is appropriate to send */
 uint16_t calc_eff_window(context_t * ctx);
 
-void //our_dprintf(const char *format, ...);
+void our_dprintf(const char *format, ...);
 #endif  /* __TRANSPORT_H__ */
