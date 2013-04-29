@@ -671,17 +671,18 @@ int send_syn_ack_fin(mysocket_t sd, context_t * ctx, uint8_t to_send_flags,
 }
 
 uint16_t calc_adv_wind(context_t * ctx) {
-
+    our_dprintf("ADV WIND: next exp %u, last read %u\n", ctx->recd_next_byte_expected, ctx->recd_last_byte_read);
     return MAX_WINDOW_SIZE - ((ctx->recd_next_byte_expected - 1) - ctx->recd_last_byte_read);
 }
 
 uint16_t calc_eff_window(context_t * ctx) {
-    our_dprintf("***EFF WINDOW ***rec adv wind %u, last sent %u, last acked %u\n", ctx->recd_adv_window, ctx->sent_last_byte_sent, ctx->sent_last_byte_acked);
+    our_dprintf("EFF WINDOW :rec adv wind %u, last sent %u, last acked %u\n", ctx->recd_adv_window, ctx->sent_last_byte_sent, ctx->sent_last_byte_acked);
     return ctx->recd_adv_window - (ctx->sent_last_byte_sent - ctx->sent_last_byte_acked);
 }
 
 int handle_cstate_est_recv(mysocket_t sd, context_t * ctx){
     /* TODO: check incoming syn/ack/fin packets */
+    our_dprintf("************ IN EST REC\n");
     size_t len =  sizeof(struct tcphdr) + STCP_MSS;
     uint8_t buff[len];
     uint32_t data_len, data_index;
@@ -697,6 +698,7 @@ int handle_cstate_est_recv(mysocket_t sd, context_t * ctx){
             our_dprintf("bad ack, expected %u, received %u. returning \n", ctx->sent_last_byte_sent+1, tcp_packet->th_ack);
             return -1;
         }
+        our_dprintf("got an ack: %u\n", tcp_packet->th_ack);
         ctx->sent_last_byte_acked = tcp_packet->th_ack;
     }
     /* check to see if the seq number is appropriate */
@@ -753,6 +755,7 @@ int handle_cstate_est_recv(mysocket_t sd, context_t * ctx){
     /* TODO: is this too far delayed from receive? */
 
     if (data_len > 0 ) {
+        our_dprintf("acking %u bytes\n", data_len);
         send_syn_ack_fin(sd, ctx, SEND_ACK, 0, ctx->recd_next_byte_expected);
     }
 
@@ -776,6 +779,7 @@ int handle_cstate_est_recv(mysocket_t sd, context_t * ctx){
 
 
 int handle_cstate_est_send(mysocket_t sd, context_t * ctx){
+    our_dprintf("*************IN EST SEND\n");
     size_t eff_wind = calc_eff_window(ctx);
     size_t max_to_send = MIN(eff_wind, STCP_MSS);
     if (max_to_send == 0) {
@@ -825,7 +829,6 @@ int handle_cstate_est_send(mysocket_t sd, context_t * ctx){
         /* don't need to wrap the buffer */
         our_dprintf("not wrapping the buffer\n");
         memcpy(ctx->send_wind + wind_index, buff, recd_app);
-        our_dprintf("send wind buff %s\n", ctx->send_wind + wind_index);
         stcp_network_send(sd, header_buf, header_size, (ctx->send_wind + wind_index), recd_app, NULL);
     }
     ctx->sent_last_byte_sent += recd_app;
