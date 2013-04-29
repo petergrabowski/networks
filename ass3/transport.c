@@ -249,7 +249,6 @@ int handle_cstate_listen(mysocket_t sd, context_t * ctx) {
             ctx->recd_last_byte_recd = ctx->initial_recd_seq_num;
             ctx->recd_next_byte_expected = ctx->recd_last_byte_recd + 1;
             ctx->recd_adv_window = tcp_packet->th_win;
-            our_dprintf("got adv wind %u\n", ctx->recd_adv_window);
             send_syn_ack_fin(sd, ctx, SEND_SYN | SEND_ACK, 
                 ctx->initial_sequence_num, ctx->recd_next_byte_expected);
             ctx->connection_state = CSTATE_SYN_RCVD;
@@ -371,7 +370,6 @@ int handle_cstate_syn_sent(mysocket_t sd, context_t * ctx) {
             if(tcp_packet->th_flags & TH_ACK){
                 ctx->sent_last_byte_acked = tcp_packet->th_ack;
             }
-            our_dprintf("got adv wind 4 = %u\n", ctx->recd_adv_window);
             ctx->connection_state = CSTATE_SYN_RCVD;
         }
 
@@ -670,7 +668,6 @@ int send_syn_ack_fin(mysocket_t sd, context_t * ctx, uint8_t to_send_flags,
     /* set adv window size */
     tcp_packet->th_win = calc_adv_wind(ctx);
     ctx->sent_adv_window = tcp_packet->th_win;
-    our_dprintf("sending adv wind 2 = %u\n", tcp_packet->th_win);
     /* send the newly constructed packet */ 
     ssize_t n = stcp_network_send(sd, buff , len, 0);
     if (n == -1){
@@ -682,7 +679,6 @@ int send_syn_ack_fin(mysocket_t sd, context_t * ctx, uint8_t to_send_flags,
 }
 
 uint16_t calc_adv_wind(context_t * ctx) {
-    our_dprintf("ADV WIND: next exp %u, last read %u\n", ctx->recd_next_byte_expected, ctx->recd_last_byte_read);
     return MAX_WINDOW_SIZE - ((ctx->recd_next_byte_expected - 1) - ctx->recd_last_byte_read);
 }
 
@@ -820,7 +816,6 @@ int handle_cstate_est_send(mysocket_t sd, context_t * ctx){
     /* set adv window size */
     tcp_header->th_win = calc_adv_wind(ctx);
     ctx->sent_adv_window = tcp_header->th_win;
-    our_dprintf("sending adv window %u\n", tcp_header->th_win);
     /* copy the data into the tcp buffer */
 
     uint32_t wind_index = ((ctx->sent_last_byte_written + 1) 
