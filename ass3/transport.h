@@ -96,9 +96,9 @@ typedef struct tcphdr
         #define strerror_r(num,buf,len) strncpy(buf, sys_errlist[num], len)
     #endif
 
-    extern void our_dprintf(const char *format, ...);
+    extern void //our_dprintf(const char *format, ...);
 
-    #define dprintf our_dprintf
+    #define dprintf //our_dprintf
     #define dperror(head) \
         { \
             if (errno >= 0) \
@@ -201,5 +201,5 @@ uint16_t calc_adv_wind(context_t * ctx);
 /* calc how much data is appropriate to send */
 uint16_t calc_eff_window(context_t * ctx);
 
-void our_dprintf(const char *format, ...);
+void //our_dprintf(const char *format, ...);
 #endif  /* __TRANSPORT_H__ */
