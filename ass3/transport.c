@@ -126,7 +126,7 @@ static void generate_initial_seq_num(context_t *ctx)
 
         if (event & NETWORK_DATA) {
             /* there was network data received */
-            /* TODO: check for FIN or receive data*/
+            our_dprintf("got network data\n");
             handle_cstate_est_recv(sd, ctx);
         } 
         if (event & APP_DATA) {
@@ -352,7 +352,7 @@ int handle_cstate_syn_sent(mysocket_t sd, context_t * ctx) {
             ctx->initial_recd_seq_num = tcp_packet->th_seq;
             ctx->sent_last_byte_acked = tcp_packet->th_ack;
             ctx->recd_last_byte_recd = tcp_packet->th_seq ;
-            our_dprintf("*** got ack %u, got adv win 3 = %u\n",ctx->sent_last_byte_acked ctx->recd_adv_window);
+            our_dprintf("*** got ack %u, got adv win 3 = %u\n",ctx->sent_last_byte_acked ,ctx->recd_adv_window);
             ctx->recd_next_byte_expected = ctx->recd_last_byte_recd + 1;
             ctx->connection_state = CSTATE_ESTABLISHED;
             send_syn_ack_fin(sd, ctx, SEND_ACK, 0, 
@@ -653,6 +653,9 @@ int send_syn_ack_fin(mysocket_t sd, context_t * ctx, uint8_t to_send_flags,
         tcp_packet->th_ack = ack_num;
         tcp_packet->th_flags |= TH_ACK;
         our_dprintf("sending ack %u\n", ack_num);
+    } else {
+        tcp_packet->th_ack = ctx->recd_last_byte_recd;
+        tcp_packet->th_flags |= TH_ACK;
     } 
 
     if (to_send_flags & SEND_FIN) {
@@ -765,8 +768,9 @@ int handle_cstate_est_recv(mysocket_t sd, context_t * ctx){
         our_dprintf("acking %u bytes\n", data_len);
         send_syn_ack_fin(sd, ctx, SEND_ACK, 0, ctx->recd_next_byte_expected);
     } else {
-        assert(tcp_packet->th_flags & TH_ACK)
+        our_dprintf("** flags %u\n", tcp_packet->th_flags);
     }
+    
 
     if (tcp_packet->th_flags & TH_FIN) {
         stcp_fin_received(sd);
