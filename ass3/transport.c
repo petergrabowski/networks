@@ -631,9 +631,10 @@ int handle_cstate_close_wait(mysocket_t sd, context_t * ctx){
     struct timespec wait_time;
     time_t curtime;
 
-    time(&curtime);
+    curtime = time(0);
+    our_dprintf("curtime = %u\n", curtime);
     wait_time.tv_sec = curtime + 240; /* wait atleast 2 lifetimes */
-
+    wait_time.tv_nsec = 0; 
     event = stcp_wait_for_event(sd, APP_CLOSE_REQUESTED | TIMEOUT, &wait_time);
 
     /* check whether it was the network, app, or a close request */
