@@ -34,8 +34,6 @@ enum {
         CSTATE_CLOSE_WAIT,  /* close wait state */
         CSTATE_LAST_ACK,    /* last ack */
  };    
- static void generate_initial_seq_num(context_t *ctx);
- static void control_loop(mysocket_t sd, context_t *ctx);
 
  typedef struct
  {
@@ -61,6 +59,9 @@ enum {
     uint8_t * recv_wind;
 
  } context_t;
+
+ static void generate_initial_seq_num(context_t *ctx);
+ static void control_loop(mysocket_t sd, context_t *ctx);
 
 /* handle everything that happens before a connection is established */
 int open_tcp_conn(mysocket_t sd, context_t * ctx, bool_t is_active);
