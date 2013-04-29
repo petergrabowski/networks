@@ -284,7 +284,7 @@ int open_tcp_conn(mysocket_t sd, context_t * ctx, bool_t is_active) {
 int handle_cstate_closed(mysocket_t sd, context_t * ctx, bool_t is_active) {
 
     int ret = 0;
-
+    our_dprintf("in CSTATE_CLOSED\n");
     if (is_active) {
         send_syn_ack_fin(sd, ctx, SEND_SYN, ctx->initial_sequence_num, 0);
         ctx->connection_state = CSTATE_SYN_SENT;
@@ -298,6 +298,7 @@ int handle_cstate_listen(mysocket_t sd, context_t * ctx) {
     int ret = 0;
     unsigned int event;
 
+    our_dprintf("in CSTATE_LISTEN\n");
     
     event = stcp_wait_for_event(sd, ANY_EVENT, NULL);
 
@@ -344,7 +345,7 @@ int handle_cstate_syn_rcvd(mysocket_t sd, context_t * ctx) {
     int ret = 0;
     unsigned int event;
 
- 
+    our_dprintf("in CSTATE_SYN_RCVD\n");
     event = stcp_wait_for_event(sd, NETWORK_DATA | APP_CLOSE_REQUESTED | TIMEOUT, NULL);
 
     /* check whether it was the network, app, or a close request */
@@ -386,7 +387,9 @@ int handle_cstate_syn_sent(mysocket_t sd, context_t * ctx) {
 
     int ret = 0;
     unsigned int event;
-
+    
+    
+    our_dprintf("in CSTATE_SYN_SENT\n");
     event = stcp_wait_for_event(sd, NETWORK_DATA | APP_CLOSE_REQUESTED | TIMEOUT, NULL);
 
     /* check whether it was the network, app, or a close request */
@@ -487,7 +490,7 @@ int handle_cstate_fin_wait_1(mysocket_t sd, context_t * ctx){
     int ret = 0;
     unsigned int event;
 
-   
+    our_dprintf("in CSTATE_FIN_WAIT_1\n");
     event = stcp_wait_for_event(sd, NETWORK_DATA | TIMEOUT, NULL);
 
     /* check whether it was the network, app, or a close request */
@@ -546,7 +549,7 @@ int handle_cstate_fin_wait_2(mysocket_t sd, context_t * ctx){
     int ret = 0;
     unsigned int event;
 
-   
+    our_dprintf("in CSTATE_FIN_WAIT_2\n");
     event = stcp_wait_for_event(sd, NETWORK_DATA | TIMEOUT, NULL);
 
     /* check whether it was the network, app, or a close request */
@@ -582,7 +585,7 @@ int handle_cstate_closing(mysocket_t sd, context_t * ctx){
     int ret = 0;
     unsigned int event;
 
-    
+    our_dprintf("in CSTATE_CLOSING\n");
     event = stcp_wait_for_event(sd, NETWORK_DATA | TIMEOUT, NULL);
 
     /* check whether it was the network, app, or a close request */
@@ -627,7 +630,7 @@ int handle_cstate_close_wait(mysocket_t sd, context_t * ctx){
     int ret = 0;
     unsigned int event;
 
-
+    our_dprintf("in CSTATE_CLOSE_WAIT\n");
     struct timespec wait_time;
     time_t curtime;
 
@@ -654,7 +657,7 @@ int handle_cstate_last_ack(mysocket_t sd, context_t * ctx){
     int ret = 0;
 
     unsigned int event;
-    
+    our_dprintf("in CSTATE_LAST_ACK\n");
     event = stcp_wait_for_event(sd, NETWORK_DATA | TIMEOUT, NULL);
 
     /* check whether it was the network, app, or a close request */
