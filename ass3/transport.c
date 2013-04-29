@@ -306,7 +306,7 @@ int handle_cstate_syn_rcvd(mysocket_t sd, context_t * ctx) {
             }
             ctx->sent_last_byte_acked = tcp_packet->th_ack;
             ctx->recd_adv_window = tcp_packet->th_win;
-            our_dprintf("got adv window %u\n", ctx->recd_adv_window);
+            our_dprintf("*** got ack %u, got adv window %u\n", ctx->sent_last_byte_acked, ctx->recd_adv_window);
             ctx->connection_state = CSTATE_ESTABLISHED;
         }
     } 
@@ -349,14 +349,14 @@ int handle_cstate_syn_sent(mysocket_t sd, context_t * ctx) {
                 return -1;
             }
             ctx->recd_adv_window = tcp_packet->th_win;
-            our_dprintf("got adv win 3 = %u\n", ctx->recd_adv_window);
             ctx->initial_recd_seq_num = tcp_packet->th_seq;
             ctx->sent_last_byte_acked = tcp_packet->th_ack;
             ctx->recd_last_byte_recd = tcp_packet->th_seq ;
+            our_dprintf("*** got ack %u, got adv win 3 = %u\n",ctx->sent_last_byte_acked ctx->recd_adv_window);
             ctx->recd_next_byte_expected = ctx->recd_last_byte_recd + 1;
             ctx->connection_state = CSTATE_ESTABLISHED;
             send_syn_ack_fin(sd, ctx, SEND_ACK, 0, 
-                ctx->recd_next_byte_expected);// + 1);
+                ctx->recd_next_byte_expected);
 
         /* else if syn */
         } else if (tcp_packet->th_flags & TH_SYN){
@@ -367,6 +367,10 @@ int handle_cstate_syn_sent(mysocket_t sd, context_t * ctx) {
             send_syn_ack_fin(sd, ctx, SEND_SYN | SEND_ACK, 
                 ctx->initial_sequence_num, ctx->recd_next_byte_expected);
             ctx->recd_adv_window = tcp_packet->th_win;
+
+            if(tcp_packet->th_flags & TH_ACK){
+                ctx->sent_last_byte_acked = tcp_packet->th_ack;
+            }
             our_dprintf("got adv wind 4 = %u\n", ctx->recd_adv_window);
             ctx->connection_state = CSTATE_SYN_RCVD;
         }
@@ -444,7 +448,7 @@ int handle_cstate_fin_wait_1(mysocket_t sd, context_t * ctx){
         struct tcphdr * tcp_packet  = (struct tcphdr *) buff;
 
         if (tcp_packet->th_flags & (TH_ACK | TH_FIN)) {
-            /* else if ack + fin */
+            /* if ack + fin */
             if (tcp_packet->th_ack != ctx->sent_last_byte_sent + 1){
                 our_dprintf("bad ack, expected %u, received %u. returning \n", ctx->sent_last_byte_sent+1, tcp_packet->th_ack);
                 return -1;
@@ -463,6 +467,7 @@ int handle_cstate_fin_wait_1(mysocket_t sd, context_t * ctx){
                 return -1;
             }
             ctx->sent_last_byte_acked = tcp_packet->th_ack;
+            our_dprintf("*** got an ack %u\n", ctx->sent_last_byte_acked);
             ctx->connection_state = CSTATE_FIN_WAIT_2;
 
         } else if (tcp_packet->th_flags &  TH_FIN){
@@ -500,9 +505,9 @@ int handle_cstate_fin_wait_2(mysocket_t sd, context_t * ctx){
             return -1;
         }
 
-        struct tcphdr * tcp_packet  = (struct tcphdr *) buff;
+        struct tcphdr * tcp_packet = (struct tcphdr *) buff;
 
-        if (tcp_packet->th_flags &  TH_FIN){
+        if (tcp_packet->th_flags & TH_FIN){
             /*  if fin */
             ctx->recd_last_byte_recd++;
             ctx->recd_last_byte_read++;
@@ -542,6 +547,7 @@ int handle_cstate_closing(mysocket_t sd, context_t * ctx){
                 our_dprintf("bad ack, expected %u, received %u. returning \n", ctx->sent_last_byte_sent+1, tcp_packet->th_ack);
                 return -1;
             }
+            our_dprintf("*** got an ack %u\n", ctx->sent_last_byte_acked);
             ctx->sent_last_byte_acked = tcp_packet->th_ack;
             ctx->connection_state = CSTATE_TIME_WAIT;
         }
@@ -608,6 +614,7 @@ int handle_cstate_last_ack(mysocket_t sd, context_t * ctx){
                 our_dprintf("bad ack, expected %u, received %u. returning \n", ctx->sent_last_byte_sent+1, tcp_packet->th_ack);
                 return -1;
             }
+            our_dprintf("*** got an ack %u\n", ctx->sent_last_byte_acked);
             ctx->sent_last_byte_acked = tcp_packet->th_ack;
             ctx->connection_state = CSTATE_CLOSED;
 
@@ -682,7 +689,7 @@ uint16_t calc_eff_window(context_t * ctx) {
 
 int handle_cstate_est_recv(mysocket_t sd, context_t * ctx){
     /* TODO: check incoming syn/ack/fin packets */
-    our_dprintf("************ IN EST REC\n");
+    our_dprintf("* IN EST REC\n");
     size_t len =  sizeof(struct tcphdr) + STCP_MSS;
     uint8_t buff[len];
     uint32_t data_len, data_index;
@@ -698,8 +705,8 @@ int handle_cstate_est_recv(mysocket_t sd, context_t * ctx){
             our_dprintf("bad ack, expected %u, received %u. returning \n", ctx->sent_last_byte_sent+1, tcp_packet->th_ack);
             return -1;
         }
-        our_dprintf("got an ack: %u\n", tcp_packet->th_ack);
         ctx->sent_last_byte_acked = tcp_packet->th_ack;
+        our_dprintf("****got an ack: %u\n", tcp_packet->th_ack);
     }
     /* check to see if the seq number is appropriate */
     if (tcp_packet->th_seq != ctx->recd_next_byte_expected){
@@ -757,6 +764,8 @@ int handle_cstate_est_recv(mysocket_t sd, context_t * ctx){
     if (data_len > 0 ) {
         our_dprintf("acking %u bytes\n", data_len);
         send_syn_ack_fin(sd, ctx, SEND_ACK, 0, ctx->recd_next_byte_expected);
+    } else {
+        assert(tcp_packet->th_flags & TH_ACK)
     }
 
     if (tcp_packet->th_flags & TH_FIN) {
@@ -769,17 +778,15 @@ int handle_cstate_est_recv(mysocket_t sd, context_t * ctx){
         send_syn_ack_fin(sd, ctx, SEND_ACK, 0, ctx->recd_next_byte_expected);
         ctx->connection_state = CSTATE_CLOSE_WAIT;
         close_tcp_conn(sd, ctx);
-        /* TODO: send another ack? */
     }
     return 0;
-    
 }
 
 
 
 
 int handle_cstate_est_send(mysocket_t sd, context_t * ctx){
-    our_dprintf("*************IN EST SEND\n");
+    our_dprintf("*IN EST SEND\n");
     size_t eff_wind = calc_eff_window(ctx);
     size_t max_to_send = MIN(eff_wind, STCP_MSS);
     if (max_to_send == 0) {
