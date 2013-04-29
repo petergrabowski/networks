@@ -11,7 +11,6 @@
 #include <stdio.h>  /* for perror */
 #include <errno.h>
 #include "mysock.h"
-#include "stcp_api.h"
 
 /* For some reason, Linux redefines tcphdr unless one compiles with only
  * _BSD_SOURCE defined--but doing this causes problems with some of the
@@ -123,83 +122,11 @@ typedef struct tcphdr
 #define SEND_ACK  0x04 /* send a ACK */
 
 /* this structure is global to a mysocket descriptor */
- typedef struct
- {
-    bool_t done;                      /* TRUE once connection is closed */
-    
-    int connection_state;             /* state of the connection (established, etc.) */
-    
-    tcp_seq initial_sequence_num;     /* local initial seq num */
-    tcp_seq initial_recd_seq_num;     /* recd initial seq num */
-    
-    uint32_t sent_last_byte_acked;    /* the last byte that was ackd */
-    uint32_t sent_last_byte_written;  /* the most recent written byte */
-    uint32_t sent_last_byte_sent;     /* the last byte that was sent */
-    
-    uint32_t recd_last_byte_read;     /* the last byte that was read */
-    uint32_t recd_last_byte_recd;     /* the last byte that was recd */
-    uint32_t recd_next_byte_expected; /* the next byte that's expected */
-    
-    uint16_t sent_adv_window;         /* size of our adv window */
-    uint16_t recd_adv_window;         /* size of the senders adv window */
 
-    uint8_t * send_wind;
-    uint8_t * recv_wind;
-
- } context_t;
 
 extern void transport_init(mysocket_t sd, bool_t is_active);
 
-/* handle everything that happens before a connection is established */
-int open_tcp_conn(mysocket_t sd, context_t * ctx, bool_t is_active);
 
-/* handle a closed connection */
-int handle_cstate_closed(mysocket_t sd, context_t * ctx, bool_t is_active);
-
-/* listen for incoming network traffic */
-int handle_cstate_listen(mysocket_t sd, context_t * ctx);
-
-/* handle a connection after the syn has been rcvd */
-int handle_cstate_syn_rcvd(mysocket_t sd, context_t * ctx);
-
-/* handle a connection after a syn has been sent */
-int handle_cstate_syn_sent(mysocket_t sd, context_t * ctx);
-
-/* handle closing tcp conn */
-int close_tcp_conn(mysocket_t sd, context_t * ctx);
-
-/* handle state fin wait 1 */
-int handle_cstate_fin_wait_1(mysocket_t sd, context_t * ctx);
-
-/* handle state fin wait 2 */
-int handle_cstate_fin_wait_2(mysocket_t sd, context_t * ctx);
-
-/* handle the closing state */
-int handle_cstate_closing(mysocket_t sd, context_t * ctx);
-
-/* handle waiting for a timeout */
-int handle_cstate_time_wait(mysocket_t sd, context_t * ctx);
-
-/* handle close waiting */
-int handle_cstate_close_wait(mysocket_t sd, context_t * ctx);
-
-/* handle waiting for the last ack */
-int handle_cstate_last_ack(mysocket_t sd, context_t * ctx);
-
-int send_syn_ack_fin(mysocket_t sd, context_t * ctx, uint8_t to_send_flags, 
-            tcp_seq seq_num, tcp_seq ack_num);
-
-/* send data once a conn is established */
-int handle_cstate_est_send(mysocket_t sd, context_t * ctx);
-
-/* receive data once a conn is established */
-int handle_cstate_est_recv(mysocket_t sd, context_t * ctx);
-
-/* calc the size of the window to advertise */
-uint16_t calc_adv_wind(context_t * ctx);
-
-/* calc how much data is appropriate to send */
-uint16_t calc_eff_window(context_t * ctx);
 
 void our_dprintf(const char *format, ...);
 #endif  /* __TRANSPORT_H__ */
