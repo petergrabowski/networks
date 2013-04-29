@@ -69,7 +69,7 @@
 
     stcp_unblock_application(sd);
 
-    /* TODO: state can be either established or FIN_WAIT_1 */
+
     if (ctx->connection_state == CSTATE_ESTABLISHED){
         control_loop(sd, ctx);
     } else if (ctx->connection_state == CSTATE_FIN_WAIT_1){
@@ -118,12 +118,11 @@ static void generate_initial_seq_num(context_t *ctx)
     while (!ctx->done)
     {
         unsigned int event;
-        /* TODO: you will need to change some of these arguments! */
+        
         event = stcp_wait_for_event(sd, ANY_EVENT, NULL);
 
         /* check whether it was the network, app, or a close request */
-        /* TODO: fill in below. check for conj of two states? */
-
+        
         if (event & NETWORK_DATA) {
             /* there was network data received */
             ////our_dprintf("got network data\n");
@@ -209,7 +208,6 @@ int open_tcp_conn(mysocket_t sd, context_t * ctx, bool_t is_active) {
 int handle_cstate_closed(mysocket_t sd, context_t * ctx, bool_t is_active) {
 
     int ret = 0;
-    /* TODO: if closed from listen state, will it spin forever? */
 
     if (is_active) {
         send_syn_ack_fin(sd, ctx, SEND_SYN, ctx->initial_sequence_num, 0);
@@ -224,7 +222,7 @@ int handle_cstate_listen(mysocket_t sd, context_t * ctx) {
     int ret = 0;
     unsigned int event;
 
-    /* TODO: you will need to change some of these arguments!*/
+    
     event = stcp_wait_for_event(sd, ANY_EVENT, NULL);
 
     /* check whether it was the network, app, or a close request */
@@ -232,20 +230,17 @@ int handle_cstate_listen(mysocket_t sd, context_t * ctx) {
     if (event & NETWORK_DATA) {
         /* there was network data received */
 
-        /* TODO: check endianness */
-        /* TODO: do we need to check for data here? */
         size_t recd;
         recd = stcp_network_recv(sd, ctx->recv_wind, MAX_WINDOW_SIZE);
         if (recd == 0) {
             //our_dprintf("bad network recv\n");
             return -1;
         }
-
         struct tcphdr * tcp_packet  = (struct tcphdr *) ctx->recv_wind;
         //size_t recd_app = recd - 4 * tcp_packet->th_off;
         if (tcp_packet->th_flags & TH_SYN){
             /* syn received */
-            ctx->initial_recd_seq_num = ntohl(tcp_packet->th_seq); /*TODO: is +1 correct */
+            ctx->initial_recd_seq_num = ntohl(tcp_packet->th_seq); 
             ctx->recd_last_byte_recd = ctx->initial_recd_seq_num;
             ctx->recd_next_byte_expected = ctx->recd_last_byte_recd + 1;
             ctx->recd_adv_window = ntohs(tcp_packet->th_win);
@@ -253,19 +248,15 @@ int handle_cstate_listen(mysocket_t sd, context_t * ctx) {
                 ctx->initial_sequence_num, ctx->recd_next_byte_expected);
             ctx->connection_state = CSTATE_SYN_RCVD;
         }
-
     } 
     if (event & APP_DATA) {
         /* the application has requested that data be sent */
-
         send_syn_ack_fin(sd, ctx, SEND_SYN, ctx->initial_sequence_num, 0);
         ctx->connection_state = CSTATE_SYN_SENT;
     } 
 
     if (event & APP_CLOSE_REQUESTED) {
         /* the application has requested that the conn be closed */
-
-        /* TODO: if closed from listen state, will it spin forever? */
         ctx->connection_state = CSTATE_CLOSED;
     } 
     return ret;
@@ -277,17 +268,13 @@ int handle_cstate_syn_rcvd(mysocket_t sd, context_t * ctx) {
     int ret = 0;
     unsigned int event;
 
-    /* TODO: you will need to change some of these arguments! how long to listen for */
+ 
     event = stcp_wait_for_event(sd, NETWORK_DATA | APP_CLOSE_REQUESTED | TIMEOUT, NULL);
 
     /* check whether it was the network, app, or a close request */
     if (event & NETWORK_DATA) {
         /* there was network data received */
 
-        /* TODO: handle, check to see if theres an appropriate ack */
-        /* TODO: check endianness */
-        /* TODO: do we need to check for data here? */
-        /* TODO: update ack num? */
         size_t recd;
         recd = stcp_network_recv(sd, ctx->recv_wind, MAX_WINDOW_SIZE);
         if (recd == 0) {
@@ -323,15 +310,13 @@ int handle_cstate_syn_sent(mysocket_t sd, context_t * ctx) {
 
     int ret = 0;
     unsigned int event;
-    /* TODO: general check to make sure intial recd seq/ack line up */
-    /* TODO: you will need to change some of these arguments! how long to listen for */
+
     event = stcp_wait_for_event(sd, NETWORK_DATA | APP_CLOSE_REQUESTED | TIMEOUT, NULL);
 
     /* check whether it was the network, app, or a close request */
     if (event & NETWORK_DATA) {
         /* there was network data received */
-        /* TODO: check endianness */
-        /* TODO: do we need to check for data here? */
+
         size_t recd, recd_app;
         recd = stcp_network_recv(sd, ctx->recv_wind, MAX_WINDOW_SIZE);
         if (recd == 0) {
@@ -376,7 +361,6 @@ int handle_cstate_syn_sent(mysocket_t sd, context_t * ctx) {
     } 
     if (event & APP_CLOSE_REQUESTED) {
         /* the application has requested that the conn be closed */
-        /* TODO: if closed from listen state, will it spin forever? */
         ctx->connection_state = CSTATE_CLOSED;
     } 
     return ret;
@@ -427,7 +411,7 @@ int handle_cstate_fin_wait_1(mysocket_t sd, context_t * ctx){
     int ret = 0;
     unsigned int event;
 
-    /* TODO: you will need to change some of these arguments! how long to listen for */
+   
     event = stcp_wait_for_event(sd, NETWORK_DATA | TIMEOUT, NULL);
 
     /* check whether it was the network, app, or a close request */
@@ -486,7 +470,7 @@ int handle_cstate_fin_wait_2(mysocket_t sd, context_t * ctx){
     int ret = 0;
     unsigned int event;
 
-    /* TODO: you will need to change some of these arguments! how long to listen for */
+   
     event = stcp_wait_for_event(sd, NETWORK_DATA | TIMEOUT, NULL);
 
     /* check whether it was the network, app, or a close request */
@@ -522,7 +506,7 @@ int handle_cstate_closing(mysocket_t sd, context_t * ctx){
     int ret = 0;
     unsigned int event;
 
-    /* TODO: you will need to change some of these arguments! how long to listen for */
+    
     event = stcp_wait_for_event(sd, NETWORK_DATA | TIMEOUT, NULL);
 
     /* check whether it was the network, app, or a close request */
@@ -567,15 +551,20 @@ int handle_cstate_close_wait(mysocket_t sd, context_t * ctx){
     int ret = 0;
     unsigned int event;
 
-    /* TODO: set timeout appropriately, two seg lifetimes */
-    event = stcp_wait_for_event(sd, APP_CLOSE_REQUESTED | TIMEOUT, NULL);
+
+    struct timespec wait_time;
+    time_t curtime;
+
+    gettimeofday(&curtime);
+    wait_time.tv_sec = curtime.tv_sec + 240; /* wait atleast 2 lifetimes */
+
+    event = stcp_wait_for_event(sd, APP_CLOSE_REQUESTED | TIMEOUT, &wait_time);
 
     /* check whether it was the network, app, or a close request */
 
     if (event & APP_CLOSE_REQUESTED) {
         /* there was network data received */
 
-        /* TODO: send fin */
         send_syn_ack_fin(sd, ctx, SEND_FIN, 0, 0);
         ctx->connection_state = CSTATE_LAST_ACK;
 
@@ -588,7 +577,7 @@ int handle_cstate_last_ack(mysocket_t sd, context_t * ctx){
     int ret = 0;
 
     unsigned int event;
-    /* TODO: you will need to change some of these arguments! how long to listen for */
+    
     event = stcp_wait_for_event(sd, NETWORK_DATA | TIMEOUT, NULL);
 
     /* check whether it was the network, app, or a close request */
@@ -633,11 +622,6 @@ int send_syn_ack_fin(mysocket_t sd, context_t * ctx, uint8_t to_send_flags,
     /* th_sport, th_dport, th_sum are set by network layer */
     /* th_urg is ignored by stcp*/
 
-    /* TODO: add one byte for syn/fin? */
-
-
-    /* TODO: check endianness */
-    /* TODO: i think problem is here. make sure only syns/fins get a seq*/
     if (to_send_flags & SEND_SYN) {
         tcp_packet->th_seq = htonl(seq_num);
         tcp_packet->th_flags |= TH_SYN;
@@ -652,10 +636,6 @@ int send_syn_ack_fin(mysocket_t sd, context_t * ctx, uint8_t to_send_flags,
         tcp_packet->th_flags |= TH_ACK;
         //our_dprintf("sending ack %u\n", ack_num);
     } 
-    // else {
-    //     tcp_packet->th_ack = ctx->recd_last_byte_recd;
-    //     tcp_packet->th_flags |= TH_ACK;
-    // } 
 
     if (to_send_flags & SEND_FIN) {
         tcp_packet->th_flags |= TH_FIN;
@@ -688,7 +668,7 @@ uint16_t calc_eff_window(context_t * ctx) {
 }
 
 int handle_cstate_est_recv(mysocket_t sd, context_t * ctx){
-    /* TODO: check incoming syn/ack/fin packets */
+
     //our_dprintf("* IN EST REC\n");
     size_t len =  sizeof(struct tcphdr) + STCP_MSS;
     uint8_t buff[len];
@@ -721,8 +701,6 @@ int handle_cstate_est_recv(mysocket_t sd, context_t * ctx){
             data_index = recv_packet_len - data_len;
         } else if (0) {
             /* placeholder for if data overflows upper bound of sliding window */
-            /* TODO: */
-
 
         } else {
             //our_dprintf("bad packet\n");
@@ -741,7 +719,7 @@ int handle_cstate_est_recv(mysocket_t sd, context_t * ctx){
         delta = MAX_WINDOW_SIZE - wind_index;
         //our_dprintf("wrapping recv buff \n");
         /*copy data to ctx->buffer and send it to app */ 
-        memcpy(ctx->recv_wind + wind_index, data + data_index, delta); /* TODO: wind_index);// + 1 ?*/
+        memcpy(ctx->recv_wind + wind_index, data + data_index, delta); 
         stcp_app_send( sd, ctx->recv_wind + wind_index, delta);
 
         memcpy(ctx->recv_wind, data + delta + data_index, data_len - delta);
@@ -755,11 +733,9 @@ int handle_cstate_est_recv(mysocket_t sd, context_t * ctx){
         stcp_app_send( sd, ctx->recv_wind + wind_index, data_len);
     }
 
-    /* TODO: make sure these are set elsewhere as well. is this right? */
     ctx->recd_last_byte_recd += data_len;
     ctx->recd_next_byte_expected += data_len;
     ctx->recd_last_byte_read += data_len;
-    /* TODO: is this too far delayed from receive? */
 
     if (data_len > 0 ) {
         //our_dprintf("acking %u bytes\n", data_len);

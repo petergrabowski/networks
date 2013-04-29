@@ -1,7 +1,60 @@
 ================================================
  README file for Assignment 3 - Simple TCP
-           Name: 
- Username/Login: 
+           Name: Peter Grabowski
+ Username/Login: pgrabows
 ================================================
+Peter Grabowski
+Networks Assignment 3 -- STCP
 
-DESCRIBE YOUR CODE AND DESIGN DECISIONS HERE
+My transport layer was designed as a large DFA, mirroring the states presented 
+on page 405 (Figure 5.7) of the textbook. The current state is marked by an 
+enum in the Context struct. Each possible state has an associated handler 
+function, which made it easy to keep the code very modular. Each handler 
+function does whatever's necessary in that state, then updates the state 
+accordingly. 
+
+Flow control is handled with three large loops. Open_tcp_conn handles 
+everything associated with opening the TCP connection, including the three way
+hand shake. open_tcp_conn will exit with the state set to either ESTABLISHED 
+or FIN_WAIT_1. If it's established, it invokes the control loop. If its 
+FIN_WAIT_1, it invokes the close_tcp_conn handler function
+
+The control loop is responsible for the bulk of the tcp logic. The function
+continuously loops, waiting for incoming network data, outgoing data passed 
+down from the app, or a close request from the app. It handles each of these
+in turn, with three handler functions. These handler functions are responsible
+for maintaining the state of the send/receive sliding windows, as well as 
+making sure the appropriate ACKs are sent and received
+
+The important metadata for the connection is stored ina context_t struct, which
+is global to the thread. It keeps track of whether or not the connection has 
+completed (done), the enum status of the connection (connection_state), the 
+initial generated sequence number for both the local side and the other side 
+of the connection (initial_sequence_num and initial_recd_seq_num). These are 
+useful for getting the correct position in the buffer. It also maintains the 
+last byte acked, written, and sent (sent_last_byte_ -acked, -written, -sent),
+ which is useful for maintaining the outgoing sliding window, along with, as
+ well as the last byte read, received, and next byte expected (recd_last_byte_ 
+ -read, -recd, and recd_next_byte_expected), which are similarly useful in 
+ maintaining the incoming sliding window. Finally, it keeps track of what 
+window it has advertised most recently (sent_adv_window), as well as what 
+window advertisement it has seen most recently (rev_adv_window), which makes 
+sure it doesn't send or receive too muchdata. The last elements are pointers
+to the outgoing memory buffer (send_wind) and incoming memory buffer 
+(recv_wind)
+
+Reading and writing into the buffer is determined by taking the received 
+sequence number and subtracting the inital sequence number. This reframes
+the data so it's on a 0...N scale. From there, taking the modulus with the 
+window size gives the appropriate index into the buffer. If the data is long 
+enough, and positioned in a way that it would overflow the buffer, it is split
+into two segments. The first fills to the end of the window, and the second 
+writes the remainder in the beginning of the window. 
+
+I'm worried I may have some trouble wrapping the buffer. My server code 
+behaved strangely -- it would send continuously until it shrunk the effective
+window to be too small, as a result of not acknowledging any acks. I tried to 
+combat this by making sure the control loop checked network events before app 
+events, but this was not successful. I was unable to determine why this is the
+case, but am hopeful it's only a simple check that I missed The code seems to
+ work well for files smaller than the buffer.
